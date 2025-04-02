@@ -51,6 +51,11 @@ CRUD para gestión de referencias bibliográficas.
 ### 🚀 **Despliegue**
 -  **Vercel** – Para el frontend.
 -  **Heroku** – Para el backend.
+  
+## 🛠️ **Herramientas de Desarrollo**  
+
+- **Git & GitHub** – Control de versiones y colaboración en el desarrollo del proyecto.  
+- **Visual Studio Code** – Editor de código recomendado para trabajar en el proyecto. 
 
 ---
 
