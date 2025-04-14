@@ -1,10 +1,6 @@
 {
-  "dependencies": {
-    "dotenv": "^16.5.0",
-    "mongodb": "^6.15.0"
-  },
   "name": "proyectointegradodaw",
-  "description": "## 📝 **Introducción** Este proyecto tiene como objetivo desarrollar una aplicación web para gestionar referencias bibliográficas de manera sencilla, con generación automática de citas en múltiples formatos como APA, MLA, Chicago, entre otros.",
+  "description": "## **Introducción** Este proyecto tiene como objetivo desarrollar una aplicación web para gestionar referencias bibliográficas de manera sencilla, con generación automática de citas en múltiples formatos como APA, MLA, Chicago, entre otros.",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
@@ -20,5 +16,8 @@
   "bugs": {
     "url": "https://github.com/CristianJoseMoreno/ProyectoIntegradoDAW/issues"
   },
-  "homepage": "https://github.com/CristianJoseMoreno/ProyectoIntegradoDAW#readme"
+  "homepage": "https://github.com/CristianJoseMoreno/ProyectoIntegradoDAW#readme",
+  "dependencies": {
+    "dotenv": "^16.5.0"
+  }
 }
