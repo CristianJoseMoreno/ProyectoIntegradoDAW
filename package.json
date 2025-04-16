@@ -2,7 +2,6 @@
   "name": "proyectointegradodaw",
   "description": "## **Introducción** Este proyecto tiene como objetivo desarrollar una aplicación web para gestionar referencias bibliográficas de manera sencilla, con generación automática de citas en múltiples formatos como APA, MLA, Chicago, entre otros.",
   "version": "1.0.0",
-  "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },

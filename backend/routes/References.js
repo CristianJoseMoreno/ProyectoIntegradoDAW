@@ -1,4 +1,3 @@
-// routes/references.js
 const express = require("express");
 const router = express.Router();
 const {
@@ -6,9 +5,9 @@ const {
   getReferences,
   updateReference,
   deleteReference,
-} = require("../controllers/referencesController");
+} = require("../controllers/ReferencesController");
 
-const verifyToken = require("../middlewares/verifyToken"); // Importamos el middleware
+const verifyToken = require("../middlewares/VerifyToken"); // Importamos el middleware
 
 // Ruta protegida: obtener todas las referencias
 router.get("/", verifyToken, getReferences);

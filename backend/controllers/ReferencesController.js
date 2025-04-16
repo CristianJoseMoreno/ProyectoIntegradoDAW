@@ -1,5 +1,4 @@
-// controllers/referencesController.js
-const Reference = require("../models/reference"); // Modelo de referencia
+const Reference = require("../models/Reference"); // Modelo de referencia
 
 // Crear nueva referencia
 const createReference = async (req, res) => {

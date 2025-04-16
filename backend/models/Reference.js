@@ -1,4 +1,3 @@
-// models/Reference.js
 const mongoose = require("mongoose");
 
 const referenceSchema = new mongoose.Schema({
