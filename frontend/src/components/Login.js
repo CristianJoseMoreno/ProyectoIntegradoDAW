@@ -13,18 +13,18 @@ const Login = () => {
       });
 
       // Recibimos el JWT de nuestro backend
-      const ourToken = res.data.ourToken;
+      const { ourToken, user } = res.data;
 
       // Lo guardamos usando el contexto
-      login(ourToken);
+      login(ourToken, user);
     } catch (err) {
       console.error("Error al autenticar con el backend:", err);
     }
   };
 
   return (
-    <div>
-      <h2>Inicia sesión con Google</h2>
+    <div className="text-center mt-6">
+      <h2 className="text-lg font-medium mb-4">Inicia sesión con Google</h2>
       <GoogleLogin
         onSuccess={handleLoginSuccess}
         onError={() => alert("Error al iniciar sesión")}

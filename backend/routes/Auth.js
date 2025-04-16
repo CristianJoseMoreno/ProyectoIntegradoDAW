@@ -19,13 +19,18 @@ router.post("/google", async (req, res) => {
     const { email, name, picture } = payload;
 
     // Creamos un JWT interno para proteger tus rutas
-    const ourToken = jwt.sign(
-      { email, name, picture },
-      process.env.JWT_SECRET,
-      { expiresIn: "1h" }
-    );
+    const ourToken = jwt.sign({ email }, process.env.JWT_SECRET, {
+      expiresIn: "1h",
+    });
 
-    res.json({ ourToken }); // Enviamos el token JWT al frontend
+    // Enviamos también los datos del usuario
+    res.json({
+      ourToken,
+      user: {
+        name,
+        picture,
+      },
+    });
   } catch (error) {
     console.error("Error en autenticación:", error);
     res.status(401).json({ error: "Token inválido" });

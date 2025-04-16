@@ -12,7 +12,7 @@ const ReferenceList = () => {
     axios
       .get("http://localhost:5000/api/references", {
         headers: {
-          "x-auth-token": token,
+          Authorization: `Bearer ${token}`,
         },
       })
       .then((res) => setReferences(res.data))
