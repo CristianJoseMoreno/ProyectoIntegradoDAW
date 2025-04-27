@@ -36,7 +36,7 @@ CRUD para gestión de referencias bibliográficas.
 
 ### 🎨 **Frontend**
 - ️ **React.js** – UI interactiva y moderna.
--  **Chakra UI** – Diseño responsivo y estilizado.
+-  **Tailwind(se ha sustituido Chakra UI)** – Diseño responsivo y estilizado.
 -  **Axios** – Comunicación con el backend.
 -  **CodeMirror** – Editor de texto interactivo.
 -  **React Router** – Gestión de navegación.
