@@ -11,7 +11,7 @@ const Navbar = () => {
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   const menuRef = useRef(null);
 
-  // ✅ Verifica token expirado al montar
+  // Verifica token expirado al montar
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (token) {
@@ -31,7 +31,7 @@ const Navbar = () => {
     }
   }, []);
 
-  // ✅ Carga script de Google OAuth al montar
+  // Carga script de Google OAuth al montar
   useEffect(() => {
     if (!document.getElementById("google-oauth")) {
       const script = document.createElement("script");
@@ -43,7 +43,7 @@ const Navbar = () => {
     }
   }, []);
 
-  // ✅ Detecta clics fuera del menú para cerrarlo
+  // Detecta clics fuera del menú para cerrarlo
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (menuRef.current && !menuRef.current.contains(e.target)) {
@@ -60,7 +60,7 @@ const Navbar = () => {
     navigate("/");
   };
 
-  // ✅ Manejo del login OAuth con error modal
+  // Manejo del login OAuth con error modal
   const handleLoginClick = () => {
     if (
       !window.google ||
