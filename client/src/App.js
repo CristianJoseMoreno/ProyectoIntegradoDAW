@@ -3,6 +3,8 @@ import { Routes, Route } from "react-router-dom";
 import Navbar from "./components/Navbar";
 import Landing from "./pages/Landing";
 import Investigar from "./pages/Investigar";
+import PrivateRoute from "./components/PrivateRoute";
+import Referencias from "./pages/Referencias";
 
 function App() {
   return (
@@ -10,7 +12,22 @@ function App() {
       <Navbar />
       <Routes>
         <Route path="/" element={<Landing />} />
-        <Route path="/investigar" element={<Investigar />} />
+        <Route
+          path="/investigar"
+          element={
+            <PrivateRoute>
+              <Investigar />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/referencias"
+          element={
+            <PrivateRoute>
+              <Referencias />
+            </PrivateRoute>
+          }
+        />
       </Routes>
     </div>
   );
