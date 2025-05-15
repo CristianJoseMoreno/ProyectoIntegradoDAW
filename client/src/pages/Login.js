@@ -18,7 +18,7 @@ export default function Login() {
       if (data.success) {
         alert("Login exitoso");
         localStorage.setItem("token", data.token); // ← Guardar token
-        window.location.href = "/dashboard";
+        window.location.href = "/investigar";
       } else {
         alert("Login fallido");
       }
