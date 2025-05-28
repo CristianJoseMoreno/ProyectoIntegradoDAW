@@ -36,7 +36,7 @@ CRUD para gestión de referencias bibliográficas.
 
 ### 🎨 **Frontend**
 - ️ **React.js** – UI interactiva y moderna.
--  **Chakra UI** – Diseño responsivo y estilizado.
+-  **Chakra UI** – Diseño responsivo y estilizado. -- Sustituido por Tailwind Css
 -  **Axios** – Comunicación con el backend.
 -  **CodeMirror** – Editor de texto interactivo.
 -  **React Router** – Gestión de navegación.
@@ -46,7 +46,7 @@ CRUD para gestión de referencias bibliográficas.
 -  **MongoDB Atlas** – Base de datos en la nube.
 -  **JWT (JSON Web Token)** – Autenticación segura.
 -  **Google Drive API** – Almacenamiento en la nube.
--  **Zotero API** – Generación automática de citas.
+-  **Zotero API** – Generación automática de citas. -- Eliminado por repositorio base
 
 ### 🚀 **Despliegue**
 -  **Vercel** – Para el frontend.
