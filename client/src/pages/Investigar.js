@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from "react";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
-import { javascript } from "@codemirror/lang-javascript";
 import { Dialog } from "@headlessui/react";
 
 export default function Investigar() {
-  const [doc, setDoc] = useState("// Empieza tu investigación...");
+  const [doc, setDoc] = useState("");
   const [styles, setStyles] = useState([]);
-  const [selectedStyle, setSelectedStyle] = useState("apa");
+  const [selectedStyle, setSelectedStyle] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [metadata, setMetadata] = useState({
     author: "",
@@ -19,41 +18,73 @@ export default function Investigar() {
     URL: "",
   });
 
-  // Carga estilos disponibles al montar
   useEffect(() => {
-    fetch("http://localhost:5000/api/zotero/styles")
-      .then((res) => res.json())
-      .then((data) => {
-        setStyles(data.styles);
-        if (data.styles.length) setSelectedStyle(data.styles[0]);
-      })
-      .catch(console.error);
+    const fetchStyles = async () => {
+      try {
+        const res = await fetch("http://localhost:5000/api/citation/styles");
+        const data = await res.json();
+        console.log("Estilos recibidos en frontend:", data.styles);
+        if (Array.isArray(data.styles)) {
+          setStyles(data.styles);
+          setSelectedStyle(data.styles[0]?.value || "");
+        } else {
+          throw new Error("Respuesta inesperada");
+        }
+      } catch (err) {
+        console.error("Error cargando estilos:", err);
+        alert("No se pudieron cargar los estilos de cita.");
+      }
+    };
+
+    fetchStyles();
   }, []);
 
-  // Construye CSL-JSON solo con campos rellenados
   const buildCSL = () => {
-    const item = { type: "chapter", id: Date.now().toString() };
-    if (metadata.author) {
-      item.author = metadata.author.split(";").map((str) => {
-        const [family, given] = str.split(",");
-        return { family: family.trim(), given: (given || "").trim() };
-      });
+    const item = {
+      type: "article-journal",
+      title: metadata.title,
+      author: metadata.author
+        ? metadata.author.split(";").map((a) => {
+            const [last, first] = a.split(",").map((s) => s.trim());
+            return { family: last, given: first };
+          })
+        : undefined,
+
+      issued: metadata.year
+        ? { "date-parts": [[parseInt(metadata.year)]] }
+        : undefined,
+      containerTitle: metadata.containerTitle,
+      page: metadata.pages,
+      publisher: metadata.publisher,
+      URL: metadata.URL,
+    };
+
+    // Fallback para evitar errores si está vacío
+    if (!item.title && !item.author) {
+      item.title = "Referencia sin título";
     }
-    if (metadata.title) item.title = metadata.title;
-    if (metadata.containerTitle)
-      item["container-title"] = metadata.containerTitle;
-    if (metadata.year)
-      item.issued = { "date-parts": [[parseInt(metadata.year)]] };
-    if (metadata.pages) item.page = metadata.pages;
-    if (metadata.publisher) item.publisher = metadata.publisher;
-    if (metadata.URL) item.URL = metadata.URL;
+
     return item;
   };
 
   const handleGenerate = async () => {
     const cslJson = buildCSL();
+
+    if (!selectedStyle) {
+      alert("Debes seleccionar un estilo de cita.");
+      return;
+    }
+
+    if (!cslJson.title && !cslJson.author) {
+      alert("Debes completar al menos el título o el autor.");
+      return;
+    }
+
+    console.log("Metadata enviada:", cslJson);
+    console.log("Estilo:", selectedStyle);
+
     try {
-      const res = await fetch("http://localhost:5000/api/zotero/format", {
+      const res = await fetch("http://localhost:5000/api/citation/format", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -62,16 +93,32 @@ export default function Investigar() {
           output: "html",
         }),
       });
-      const json = await res.json();
-      console.log("Formato Response:", json);
 
-      if (!json.citationHtml) throw new Error(json.error || "Respuesta vacía");
+      const text = await res.text();
+      console.log("Respuesta bruta:", text);
 
-      // ✅ Convertir HTML a texto enriquecido
-      setDoc((prev) => prev + "<p>" + json.citationHtml + "</p>");
+      if (!res.ok) {
+        throw new Error("Respuesta no OK del servidor");
+      }
 
+      const data = JSON.parse(text);
+      if (!data.citationHtml) throw new Error("Falta citationHtml");
+
+      setDoc((prev) => prev + data.citationHtml);
       setModalOpen(false);
+
+      // Limpiar metadata
+      setMetadata({
+        author: "",
+        title: "",
+        year: "",
+        containerTitle: "",
+        pages: "",
+        publisher: "",
+        URL: "",
+      });
     } catch (error) {
+      console.error("Error generando cita:", error);
       alert("Error generando cita: " + error.message);
     }
   };
@@ -188,9 +235,9 @@ export default function Investigar() {
               onChange={(e) => setSelectedStyle(e.target.value)}
               className="w-full border p-2 rounded-lg"
             >
-              {styles.map((s) => (
-                <option key={s} value={s}>
-                  {s.replace(/-/g, " ")}
+              {styles.map((style) => (
+                <option key={style.value} value={style.value}>
+                  {style.label}
                 </option>
               ))}
             </select>
