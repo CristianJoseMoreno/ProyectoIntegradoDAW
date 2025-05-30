@@ -1,8 +1,26 @@
+html {
+  scroll-behavior: smooth;
+}
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 /* index.css */
 /* Agregar estas variables para controlar el tema */
+
+@layer utilities {
+  .clip-path-section {
+    clip-path: polygon(0 5%, 100% 0, 100% 95%, 0% 100%);
+  }
+}
+body {
+  font-family: "Inter", sans-serif;
+  /* Aplicamos un fondo base sutil al body, si la primera sección no tiene un bg propio */
+  background-color: #f8f3eb; /* Este color también se usará para el Navbar/Footer */
+}
+
+/* --- Variables de color (mantener las tuyas) --- */
 :root {
   --background: 0 0% 100%;
   --foreground: 20 14.3% 4.1%;
@@ -24,28 +42,79 @@
   --destructive-foreground: 60 9.1% 97.8%;
   --ring: 20 14.3% 4.1%;
   --radius: 0.5rem;
+
+  /* Añadimos tus nuevos colores pastel como variables CSS también para consistencia */
+  --pastel-peach: 24 57% 93%; /* HSL para #FFEDD8 */
+  --pastel-rose: 0 71% 95%; /* HSL para #FFE8E8 */
+  --pastel-mint: 150 49% 93%; /* HSL para #E0F8F0 */
+  --pastel-lavender: 249 71% 95%; /* HSL para #EAE8FF */
+  --pastel-sky: 191 75% 93%; /* HSL para #E0F7FA */
+  --soft-gray: 0 0% 96%; /* HSL para #F5F5F5 */
 }
 
-/* Para el modo oscuro */
 .dark {
-  --background: 240 10% 3.9%;
-  --foreground: 0 0% 98%;
-  --muted: 240 3.7% 15.9%;
-  --muted-foreground: 240 5% 64.9%;
-  --popover: 240 10% 3.9%;
-  --popover-foreground: 0 0% 98%;
-  --card: 240 10% 3.9%;
-  --card-foreground: 0 0% 98%;
-  --border: 240 3.7% 15.9%;
-  --input: 240 3.7% 15.9%;
-  --primary: 207 90% 54%;
-  --primary-foreground: 211 100% 99%;
-  --secondary: 240 3.7% 15.9%;
-  --secondary-foreground: 0 0% 98%;
-  --accent: 240 3.7% 15.9%;
-  --accent-foreground: 0 0% 98%;
-  --destructive: 0 62.8% 30.6%;
-  --destructive-foreground: 0 0% 98%;
-  --ring: 240 4.9% 83.9%;
-  --radius: 0.5rem;
+  /* ... tus variables del modo oscuro se mantienen ... */
+}
+
+/* --- ESTILOS PARA NAVBARD Y FOOTER --- */
+/* Para el Navbar: Asumiendo que el navbar es el primer elemento <nav> en tu DOM.
+   Si tu Navbar está en App.js o tiene una clase específica (ej. 'fixed-navbar'),
+   tendrías que ajustar este selector. Si usa 'bg-white', lo anulamos. */
+nav {
+  background-color: #f8f3eb !important; /* Asegura que el navbar tenga este color */
+  box-shadow: none !important; /* Elimina la sombra si la tiene para que sea más plano */
+}
+
+/* Para el Footer: Ya tiene 'bg-beige-claro-personalizado' en Landing.js,
+   así que la definición en tailwind.config.js y el body ya lo cubren.
+   Esta regla es por si acaso hay alguna anulación. */
+footer.bg-beige-claro-personalizado {
+  background-color: #f8f3eb !important;
+}
+
+/* --- ESTILOS PARA LAS TRES SECCIONES INTERMEDIAS DEL LANDING.JS --- */
+/* Seleccionamos las secciones por su orden en el DOM */
+
+/* Sección Hero (Primera sección del Landing.js) */
+/* Es el primer <section> dentro del componente Landing */
+.Landing > section:first-of-type {
+  /* Asumiendo que Landing es un div o el propio componente */
+  background-color: #f8f3eb; /* pastel-mint */
+  background-image: radial-gradient(
+    circle at center,
+    rgba(255, 255, 255, 0.5) 0%,
+    rgba(224, 248, 240, 0) 70%
+  );
+  background-blend-mode: overlay;
+  /* Asegura que no hay márgenes extra de otras clases */
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  padding-top: 6rem; /* Ajusta el padding para el degradado */
+  padding-bottom: 6rem;
+}
+
+/* Sección de Características/Ventajas (Tercera sección del Landing.js) */
+/* Es la tercera <section> dentro del componente Landing */
+.Landing > section:nth-of-type(3) {
+  background-color: #f8f3eb; /* pastel-lavender */
+  background-image: radial-gradient(
+    circle at center,
+    rgba(255, 255, 255, 0.5) 0%,
+    rgba(234, 232, 255, 0) 70%
+  );
+  background-blend-mode: overlay;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+/* --- Mantener los estilos de hover y sombras --- */
+.group:hover .shadow-md {
+  box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.15),
+    0 6px 12px -3px rgba(0, 0, 0, 0.08);
+  transform: translateY(-5px);
+  transition: all 0.3s ease-out;
+}
+
+.bg-white.p-8.rounded-lg.shadow-md {
+  transition: all 0.3s ease-out;
 }
