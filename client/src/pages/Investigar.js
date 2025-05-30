@@ -70,8 +70,14 @@ export default function Investigar() {
     }
 
     const fileUrl = URL.createObjectURL(file);
-    setPdfUrl(`/pdfjs/web/viewer.html?file=${encodeURIComponent(fileUrl)}`);
+    const viewerUrl = `/web/viewer.html?file=${encodeURIComponent(fileUrl)}`;
 
+    const iframe = document.getElementById("pdf-viewer");
+    if (iframe) {
+      iframe.src = viewerUrl;
+    }
+
+    setPdfUrl(viewerUrl);
     e.target.value = null;
   };
 
@@ -260,7 +266,8 @@ export default function Investigar() {
             />
           </div>
           <iframe
-            src={pdfUrl}
+            id="pdf-viewer"
+            src="/web/viewer.html"
             title="Visor PDF"
             className="flex-1 rounded-md border"
           />
