@@ -1,13 +1,17 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
 import { Dialog } from "@headlessui/react";
+import mammoth from "mammoth";
 
 export default function Investigar() {
   const [doc, setDoc] = useState("");
   const [styles, setStyles] = useState([]);
   const [selectedStyle, setSelectedStyle] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState(
+    "https://mozilla.github.io/pdf.js/web/viewer.html"
+  );
   const [metadata, setMetadata] = useState({
     author: "",
     title: "",
@@ -17,6 +21,59 @@ export default function Investigar() {
     publisher: "",
     URL: "",
   });
+  // Ref para input file oculto
+  const fileInputRef = useRef(null);
+  const pdfInputRef = useRef(null);
+
+  // Abrir explorador de archivos
+  const openFileDialog = () => {
+    fileInputRef.current?.click();
+  };
+
+  const openPdfDialog = () => {
+    pdfInputRef.current?.click();
+  };
+
+  // Leer archivo cargado
+  const handleFileChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const ext = file.name.split(".").pop().toLowerCase();
+
+    if (ext === "txt") {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setDoc(event.target.result);
+      };
+      reader.readAsText(file);
+    } else if (ext === "docx") {
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const result = await mammoth.extractRawText({ arrayBuffer });
+        setDoc(result.value);
+      } catch (err) {
+        alert("Error leyendo archivo .docx: " + err.message);
+      }
+    } else {
+      alert("Solo se permiten archivos .txt y .docx");
+    }
+
+    e.target.value = null; // permitir cargar mismo archivo varias veces
+  };
+
+  const handlePdfChange = (e) => {
+    const file = e.target.files[0];
+    if (!file || file.type !== "application/pdf") {
+      alert("Por favor selecciona un archivo PDF válido.");
+      return;
+    }
+
+    const fileUrl = URL.createObjectURL(file);
+    setPdfUrl(`/pdfjs/web/viewer.html?file=${encodeURIComponent(fileUrl)}`);
+
+    e.target.value = null;
+  };
 
   useEffect(() => {
     const fetchStyles = async () => {
@@ -123,18 +180,57 @@ export default function Investigar() {
     }
   };
 
+  const handleSave = () => {
+    const blob = new Blob([doc], { type: "text/plain;charset=utf-8" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "documento.txt";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="flex flex-col h-screen p-6 bg-gray-50">
       <h1 className="text-2xl font-semibold mb-4">Editor de Investigación</h1>
       <div className="flex flex-1 gap-6">
         {/* Editor */}
         <div className="w-1/2 relative bg-white rounded-2xl shadow-lg flex flex-col overflow-hidden">
-          <button
-            onClick={() => setModalOpen(true)}
-            className="absolute top-4 right-4 z-10 px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
-          >
-            Insertar referencia
-          </button>
+          {/* Contenedor de botones */}
+          <div className="flex justify-between items-center gap-3 p-4">
+            <div className="flex gap-3">
+              <button
+                onClick={openFileDialog}
+                className="px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+              >
+                Cargar archivo
+              </button>
+
+              <button
+                onClick={handleSave}
+                className="px-3 py-1 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+              >
+                Guardar archivo
+              </button>
+            </div>
+
+            <button
+              onClick={() => setModalOpen(true)}
+              className="px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+            >
+              Insertar referencia
+            </button>
+          </div>
+
+          {/* Input de archivo oculto */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".txt,.docx"
+            onChange={handleFileChange}
+            style={{ display: "none" }}
+          />
+
           <div className="flex-1 overflow-auto">
             <ReactQuill
               value={doc}
@@ -147,9 +243,24 @@ export default function Investigar() {
 
         {/* Visor PDF */}
         <div className="w-1/2 bg-white p-4 rounded-2xl shadow-lg flex flex-col">
-          <h2 className="text-lg font-medium mb-2">Visor de PDF</h2>
+          <div className="flex justify-between items-center mb-2">
+            <h2 className="text-lg font-medium">Visor de PDF</h2>
+            <button
+              onClick={openPdfDialog}
+              className="px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+            >
+              Cargar PDF
+            </button>
+            <input
+              ref={pdfInputRef}
+              type="file"
+              accept="application/pdf"
+              onChange={handlePdfChange}
+              style={{ display: "none" }}
+            />
+          </div>
           <iframe
-            src="https://mozilla.github.io/pdf.js/web/viewer.html"
+            src={pdfUrl}
             title="Visor PDF"
             className="flex-1 rounded-md border"
           />
