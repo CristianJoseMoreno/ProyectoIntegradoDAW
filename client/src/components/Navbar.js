@@ -25,14 +25,14 @@ const Navbar = ({ user, handleLogout, handleLoginClick }) => {
         {user ? (
           <>
             <Link
-              to="/investigar"
+              to="/research"
               className="transition-all duration-100 ease-in-out pb-1 border-b-2 border-transparent hover:border-primary hover:text-primary text-base font-bold tracking-wide mx-4 text-gray-500"
             >
               Investigar
             </Link>
 
             <Link
-              to="/referencias"
+              to="/references"
               className="transition-all duration-100 ease-in-out pb-1 border-b-2 border-transparent hover:border-primary hover:text-primary text-base font-bold tracking-wide mx-4 text-gray-500"
             >
               Gestionar Referencias

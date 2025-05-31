@@ -35,8 +35,6 @@ router.get("/citation/styles", async (req, res) => {
 router.post("/citation/format", (req, res) => {
   try {
     const { metadata, style, output = "html" } = req.body;
-    console.log("Style recibido en backend:", style);
-    console.log("Metadata recibida:", metadata);
 
     if (!metadata || !style) {
       return res
@@ -54,8 +52,6 @@ router.post("/citation/format", (req, res) => {
     }
 
     const csl = fs.readFileSync(cslPath, "utf8");
-    console.log("Contenido CSL cargado:", csl.slice(0, 200)); // Solo los primeros caracteres
-    console.log("Cargando estilo desde:", cslPath);
     const cite = new Cite([metadata]);
 
     const formatted = cite.format("bibliography", {

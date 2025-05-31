@@ -4,7 +4,7 @@ import "react-quill/dist/quill.snow.css";
 import { Dialog } from "@headlessui/react";
 import mammoth from "mammoth";
 
-export default function Investigar() {
+export default function Research() {
   const [doc, setDoc] = useState("");
   const [styles, setStyles] = useState([]);
   const [selectedStyle, setSelectedStyle] = useState("");
@@ -86,7 +86,6 @@ export default function Investigar() {
       try {
         const res = await fetch("http://localhost:5000/api/citation/styles");
         const data = await res.json();
-        console.log("Estilos recibidos en frontend:", data.styles);
         if (Array.isArray(data.styles)) {
           setStyles(data.styles);
           setSelectedStyle(data.styles[0]?.value || "");
@@ -143,9 +142,6 @@ export default function Investigar() {
       return;
     }
 
-    console.log("Metadata enviada:", cslJson);
-    console.log("Estilo:", selectedStyle);
-
     try {
       const res = await fetch("http://localhost:5000/api/citation/format", {
         method: "POST",
@@ -158,7 +154,6 @@ export default function Investigar() {
       });
 
       const text = await res.text();
-      console.log("Respuesta bruta:", text);
 
       if (!res.ok) {
         throw new Error("Respuesta no OK del servidor");

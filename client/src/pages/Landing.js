@@ -13,7 +13,7 @@ const Landing = ({ handleLoginClick }) => {
   const handleButtonClick = () => {
     const token = localStorage.getItem("token");
     if (token) {
-      navigate("/investigar"); // Redirige a Investigar si el usuario está logado
+      navigate("/research"); // Redirige a Investigar si el usuario está logado
     } else {
       handleLoginClick(); // Llama a la función de login si no está logado
     }

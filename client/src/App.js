@@ -3,9 +3,9 @@ import { Routes, Route, useNavigate } from "react-router-dom";
 import { jwtDecode } from "jwt-decode";
 import Navbar from "./components/Navbar";
 import Landing from "./pages/Landing";
-import Investigar from "./pages/Investigar";
+import Research from "./pages/Research";
 import PrivateRoute from "./components/PrivateRoute";
-import Referencias from "./pages/Referencias";
+import References from "./pages/References";
 
 function App() {
   const navigate = useNavigate();
@@ -92,7 +92,7 @@ function App() {
             localStorage.setItem("token", data.token); // Guarda el token recibido
             setUser(jwtDecode(data.token)); // Decodifica y establece el usuario
             setLoginModalOpen(false); // Cierra el modal de login/error
-            navigate("/investigar"); // Redirige al usuario
+            navigate("/research"); // Redirige al usuario
           } else {
             setLoginError(data.message || "Error al iniciar sesión"); // Establece el mensaje de error
             setLoginModalOpen(true); // Abre el modal con el error
@@ -121,18 +121,18 @@ function App() {
           element={<Landing handleLoginClick={handleLoginClick} />}
         />
         <Route
-          path="/investigar"
+          path="/research"
           element={
             <PrivateRoute user={user}>
-              <Investigar />
+              <Research />
             </PrivateRoute>
           }
         />
         <Route
-          path="/referencias"
+          path="/references"
           element={
             <PrivateRoute user={user}>
-              <Referencias />
+              <References />
             </PrivateRoute>
           }
         />
