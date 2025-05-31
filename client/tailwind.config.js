@@ -7,15 +7,8 @@ module.exports = {
           DEFAULT: "hsl(207 90% 54%)", // Tu azul/índigo actual
           foreground: "hsl(211 100% 99%)",
         },
-        "beige-claro-personalizado": "#F8F3EB", // Para Navbar y Footer
-
-        // --- Nuevos colores pastel para las secciones (WCAG friendly) ---
-        "pastel-peach": "#FFEDD8",
-        "pastel-rose": "#FFE8E8",
-        "pastel-mint": "#E0F8F0",
-        "pastel-lavender": "#EAE8FF",
-        "pastel-sky": "#E0F7FA",
-        "soft-gray": "#F5F5F5",
+        "bg-default-section": "#F3F4F6", // Color para la mayoría de las secciones (Hero, ¿Por qué elegir?, Footer)
+        "bg-about-us-mint": "#E0F8F0", // Color para "Sobre Nosotros"
       },
       boxShadow: {
         md: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",

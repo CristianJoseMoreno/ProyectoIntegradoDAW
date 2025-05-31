@@ -8,7 +8,6 @@ import {
 } from "@fortawesome/free-brands-svg-icons";
 import { faEnvelope } from "@fortawesome/free-solid-svg-icons";
 
-// Nueva URL de imagen para la sección "Sobre Nosotros" (mesa con libros y apuntes)
 const aboutUsImage =
   "https://images.unsplash.com/photo-1507842217343-583bb7270b66?q=80&w=2940&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D";
 
@@ -50,9 +49,10 @@ const Landing = ({ handleLoginClick }) => {
 
   return (
     <>
-      {/* Sección Hero */}
-      <section className="relative w-full max-w-7xl mx-auto px-6 md:px-10 py-12 md:py-24 text-center">
-        <div className="relative z-10 flex flex-col items-center">
+      {/* Sección Hero - Fondo completo en F3F4F6 */}
+      {/* El div interno con max-w-7xl tendrá el contenido, pero el fondo se extiende con la sección */}
+      <section className="bg-bg-default-section relative py-12 md:py-24 text-center">
+        <div className="w-full max-w-7xl mx-auto px-6 md:px-10 relative z-10 flex flex-col items-center">
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-tight text-gray-900 mb-6">
             <span className="block">La forma inteligente de organizar</span>
             <span className="block text-primary">
@@ -73,64 +73,57 @@ const Landing = ({ handleLoginClick }) => {
           </button>
         </div>
       </section>
-      <div className="relative isolate">
-        {/* Fondo con formas diagonales y color pastel con degradado radial */}
-        <div
-          className="absolute inset-0 z-[-1] clip-path-section"
-          style={{
-            backgroundColor: "#FFE8E8", // Color pastel-rose
-            backgroundImage:
-              "radial-gradient(circle at center, rgba(255,255,255,0.5) 0%, rgba(255,232,232,0) 70%)",
-            backgroundBlendMode: "overlay",
-          }}
-          aria-hidden="true"
-        />
 
-        <section
-          id="sobre-nosotros"
-          className="py-16 md:py-24 px-6 md:px-10 flex flex-col justify-center"
-        >
-          <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-            {/* Contenido de texto "Sobre Nosotros" */}
-            <div className="text-center md:text-left">
-              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-8">
-                Sobre Nosotros
-              </h2>
-              <p className="text-lg text-gray-700 mb-6">
-                RefMind nace de la necesidad de simplificar el proceso de
-                investigación académica. Sabemos que la gestión de referencias
-                puede ser tediosa y robarte tiempo valioso. Por eso, hemos
-                creado una plataforma intuitiva y potente que te permite
-                dedicarte a lo que realmente importa: la creación y el análisis
-                de conocimiento.
-              </p>
-              <p className="text-lg text-gray-700">
-                Nuestro equipo está comprometido con la innovación y la mejora
-                continua, escuchando siempre a nuestra comunidad de usuarios
-                para ofrecer una herramienta que realmente haga la diferencia en
-                tu trayectoria académica.
-              </p>
-            </div>
+      {/* SECCIÓN "SOBRE NOSOTROS" - Con efecto inclinado */}
+      <section
+        id="sobre-nosotros"
+        className="bg-bg-default-section relative py-26 md:py-34 overflow-hidden"
+      >
+        {/* Este div será el fondo inclinado Menta */}
+        <div className="absolute inset-1 transform -skew-y-[8deg] origin-top-left bg-bg-about-us-mint z-0">
+          {/* El skew-y del -8deg es una aproximación visual. Ajusta el valor si lo necesitas.
+              También asegúrate de que el z-index sea menor que el contenido */}
+        </div>
 
-            {/* Imagen para "Sobre Nosotros" */}
-            <div className="mt-8 md:mt-0 flex justify-center w-full">
-              <img
-                src={aboutUsImage}
-                alt="Mesa con libros y apuntes"
-                className="rounded-lg shadow-xl w-full h-auto object-cover md:max-h-96"
-              />
-            </div>
+        {/* Contenido de la sección "Sobre Nosotros" */}
+        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 items-center relative z-10">
+          <div className="text-center md:text-left">
+            <h2 className="text-3xl sm:text-4xl font-bold text-[#1F2937] mb-8">
+              Sobre Nosotros
+            </h2>
+            <p className="text-lg text-[#1F2937] mb-6">
+              RefMind nace de la necesidad de simplificar el proceso de
+              investigación académica. Sabemos que la gestión de referencias
+              puede ser tediosa y robarte tiempo valioso. Por eso, hemos creado
+              una plataforma intuitiva y potente que te permite dedicarte a lo
+              que realmente importa: la creación y el análisis de conocimiento.
+            </p>
+            <p className="text-lg text-[#1F2937]">
+              Nuestro equipo está comprometido con la innovación y la mejora
+              continua, escuchando siempre a nuestra comunidad de usuarios para
+              ofrecer una herramienta que realmente haga la diferencia en tu
+              trayectoria académica.
+            </p>
           </div>
-        </section>
-      </div>
 
-      {/* Sección de Características/Ventajas - MOVIDA ABAJO */}
-      <section className="bg-gray-100 py-16 md:py-24 px-6 md:px-10">
+          <div className="mt-8 md:mt-0 flex justify-center w-full">
+            <img
+              src={aboutUsImage}
+              alt="Mesa con libros y apuntes"
+              className="rounded-lg shadow-xl w-full h-auto object-cover md:max-h-96"
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* Sección de Características/Ventajas - MISMO TONO QUE HERO Y FOOTER (F3F4F6) */}
+      <section className="bg-bg-default-section py-16 md:py-24 px-6 md:px-10">
         <div className="max-w-7xl mx-auto text-center">
           <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-12">
             ¿Por qué elegir RefMind?
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {/* Los cards dentro de esta sección pueden seguir siendo bg-white */}
             <div className="bg-white p-8 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300">
               <div className="text-primary text-4xl mb-4">✨</div>
               <h3 className="text-xl font-semibold mb-3">Gestión Intuitiva</h3>
@@ -159,8 +152,8 @@ const Landing = ({ handleLoginClick }) => {
         </div>
       </section>
 
-      {/* Footer - Con el color de fondo y el logo más grande */}
-      <div className="bg-beige-claro-personalizado text-gray-800 py-8">
+      {/* Footer - Ahora con el color bg-default-section (#F3F4F6) */}
+      <div className="bg-bg-default-section text-gray-800 py-8">
         <footer className="w-full max-w-7xl mx-auto px-6 md:px-10 text-sm">
           <div className="relative flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
             {/* Copyright y Licencia (Izquierda) */}
