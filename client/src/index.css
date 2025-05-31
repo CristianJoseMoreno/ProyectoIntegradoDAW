@@ -9,46 +9,12 @@ html {
 
 body {
   font-family: "Inter", sans-serif;
-  /* Eliminamos background-color del body para que las secciones se extiendan con su propio color */
 }
 
 /* --- Variables de color --- */
 :root {
-  /* Mantén tus variables existentes si las usas en otras partes */
   --background: 0 0% 100%;
   --foreground: 20 14.3% 4.1%;
-  /* ... otras variables ... */
   --primary: 207 90% 54%;
   --primary-foreground: 211 100% 99%;
-}
-
-/* --- ESTILOS PARA LAS SECCIONES --- */
-section {
-  padding-top: 6rem;
-  padding-bottom: 6rem;
-  /* Aseguramos que CSS puro no imponga un fondo. Tailwind lo hará. */
-  background-image: none !important;
-  position: relative;
-  overflow: hidden; /* Asegura que el contenido del clip-path no se desborde */
-  z-index: 1; /* Asegura el orden de apilamiento correcto */
-}
-
-/* REGLAS ESPECÍFICAS PARA LA SECCIÓN "SOBRE NOSOTROS" */
-#sobre-nosotros {
-  /* El color de fondo y de texto se aplicarán con las clases de Tailwind en Landing.js.
-     Aquí solo las reglas estructurales como el clip-path y z-index. */
-  position: relative;
-  z-index: 1;
-}
-
-/* --- Mantener los estilos de hover y sombras --- */
-.group:hover .shadow-md {
-  box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.15),
-    0 6px 12px -3px rgba(0, 0, 0, 0.08);
-  transform: translateY(-5px);
-  transition: all 0.3s ease-out;
-}
-
-.bg-white.p-8.rounded-lg.shadow-md {
-  transition: all 0.3s ease-out;
 }

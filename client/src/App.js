@@ -6,7 +6,6 @@ import Landing from "./pages/Landing";
 import Investigar from "./pages/Investigar";
 import PrivateRoute from "./components/PrivateRoute";
 import Referencias from "./pages/Referencias";
-import LoginModal from "./components/LoginModal";
 
 function App() {
   const navigate = useNavigate();
@@ -14,8 +13,6 @@ function App() {
   const [loginError, setLoginError] = useState(null);
   const [loginModalOpen, setLoginModalOpen] = useState(false);
 
-  // Lógica de token y usuario: Verifica si hay un token, lo decodifica y establece el usuario.
-  // Si el token expira o es inválido, lo elimina y redirige a la página principal.
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (token) {
@@ -36,9 +33,8 @@ function App() {
         navigate("/");
       }
     }
-  }, [navigate]); // navigate como dependencia asegura que el efecto se ejecuta si cambia (aunque raramente lo hará)
+  }, [navigate]);
 
-  // Lógica de carga del script de Google OAuth: Asegura que el script solo se añade una vez al body.
   useEffect(() => {
     if (!document.getElementById("google-oauth")) {
       const script = document.createElement("script");
@@ -73,9 +69,9 @@ function App() {
 
     // Inicializa el cliente de código OAuth de Google.
     const client = window.google.accounts.oauth2.initCodeClient({
-      client_id: process.env.REACT_APP_GOOGLE_CLIENT_ID, // Asegúrate de tener esta variable de entorno
+      client_id: process.env.REACT_APP_GOOGLE_CLIENT_ID,
       scope: "openid email profile",
-      ux_mode: "popup", // Abre la ventana de login en un popup
+      ux_mode: "popup",
       callback: async (response) => {
         if (!response.code) {
           // Si el usuario cierra el popup o cancela, no hacemos nada.
@@ -114,19 +110,16 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
-      {/* Navbar recibe user, handleLogout y handleLoginClick como props */}
       <Navbar
         user={user}
         handleLogout={handleLogout}
         handleLoginClick={handleLoginClick}
       />
       <Routes>
-        {/* Landing recibe handleLoginClick como prop */}
         <Route
           path="/"
           element={<Landing handleLoginClick={handleLoginClick} />}
         />
-        {/* Rutas protegidas que requieren que el usuario esté logueado */}
         <Route
           path="/investigar"
           element={
@@ -145,7 +138,6 @@ function App() {
         />
       </Routes>
 
-      {/* El LoginModal se renderiza aquí en App.js para mostrar errores de login */}
       {loginModalOpen && (
         <LoginModal
           isOpen={loginModalOpen}
