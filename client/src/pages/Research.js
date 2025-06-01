@@ -17,6 +17,9 @@ export default function Research() {
     URL: "",
   });
 
+  const [pdfs, setPdfs] = useState([]);
+  const [activePdfUrl, setActivePdfUrl] = useState("");
+
   useEffect(() => {
     const fetchStyles = async () => {
       try {
@@ -55,7 +58,6 @@ export default function Research() {
       URL: metadata.URL,
     };
 
-    // Fallback para evitar errores si está vacío
     if (!item.title && !item.author) {
       item.title = "Referencia sin título";
     }
@@ -99,7 +101,6 @@ export default function Research() {
       setDoc((prev) => prev + data.citationHtml);
       setModalOpen(false);
 
-      // Limpiar metadata
       setMetadata({
         author: "",
         title: "",
@@ -113,6 +114,30 @@ export default function Research() {
       console.error("Error generando cita:", error);
       alert("Error generando cita: " + error.message);
     }
+  };
+
+  const addPdf = ({ url, name }) => {
+    setPdfs((prevPdfs) => {
+      if (prevPdfs.some((pdf) => pdf.url === url)) {
+        setActivePdfUrl(url);
+        return prevPdfs;
+      }
+      const newPdfs = [...prevPdfs, { url, name }];
+      setActivePdfUrl(url);
+      return newPdfs;
+    });
+  };
+
+  const removePdf = (urlToRemove) => {
+    setPdfs((prevPdfs) => {
+      const updatedPdfs = prevPdfs.filter((pdf) => pdf.url !== urlToRemove);
+      if (activePdfUrl === urlToRemove) {
+        setActivePdfUrl(updatedPdfs.length > 0 ? updatedPdfs[0].url : "");
+      }
+
+      URL.revokeObjectURL(urlToRemove);
+      return updatedPdfs;
+    });
   };
 
   return (
@@ -131,7 +156,13 @@ export default function Research() {
           styles={styles}
           handleGenerate={handleGenerate}
         />
-        <PdfViewer />
+        <PdfViewer
+          pdfs={pdfs}
+          activePdfUrl={activePdfUrl}
+          setActivePdfUrl={setActivePdfUrl}
+          addPdf={addPdf}
+          removePdf={removePdf}
+        />
       </div>
     </div>
   );
