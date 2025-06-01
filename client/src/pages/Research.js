@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import TextEditor from "../components/TextEditor";
 import PdfViewer from "../components/PdfViewer";
 
-export default function Research() {
+export default function Research({ googleAccessToken }) {
   const [doc, setDoc] = useState("");
   const [styles, setStyles] = useState([]);
   const [selectedStyle, setSelectedStyle] = useState("");
@@ -155,6 +155,7 @@ export default function Research() {
           setSelectedStyle={setSelectedStyle}
           styles={styles}
           handleGenerate={handleGenerate}
+          googleAccessToken={googleAccessToken}
         />
         <PdfViewer
           pdfs={pdfs}
@@ -162,6 +163,7 @@ export default function Research() {
           setActivePdfUrl={setActivePdfUrl}
           addPdf={addPdf}
           removePdf={removePdf}
+          googleAccessToken={googleAccessToken}
         />
       </div>
     </div>
