@@ -1,9 +1,18 @@
 import React, { useState, useRef, useEffect } from "react";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
-import { Dialog } from "@headlessui/react";
+import { Dialog, Transition } from "@headlessui/react";
 import mammoth from "mammoth"; // Asegúrate de que mammoth esté importado
 
+// Importa iconos. Ejemplo con Heroicons:
+import {
+  ArrowUpTrayIcon, // Para subir
+  ArrowDownTrayIcon, // Para bajar
+  FolderOpenIcon, // Para local
+  CloudArrowUpIcon, // Alternativa para Drive upload
+  CloudArrowDownIcon, // Alternativa para Drive download
+} from "@heroicons/react/24/outline"; // Asegúrate de que la ruta sea correcta según tu instalación
+import { PlusIcon } from "@heroicons/react/24/outline";
 export default function TextEditor({
   doc,
   setDoc,
@@ -17,6 +26,11 @@ export default function TextEditor({
   handleGenerate,
   googleAccessToken,
 }) {
+  // Nuevo estado para controlar el modal de selección de archivo
+  const [fileSelectionModalOpen, setFileSelectionModalOpen] = useState(false);
+  // Nuevo estado para saber si es una acción de 'upload' o 'download'
+  const [currentAction, setCurrentAction] = useState(null); // 'upload' o 'download'
+
   // Función auxiliar para convertir una cadena "binaria" a ArrayBuffer
   const stringToBytes = (str) => {
     const bytes = new Uint8Array(str.length);
@@ -35,7 +49,10 @@ export default function TextEditor({
 
   const handleFileChange = async (e) => {
     const file = e.target.files[0];
-    if (!file) return;
+    if (!file) {
+      setFileSelectionModalOpen(false); // Cierra el modal si no se selecciona archivo
+      return;
+    }
 
     // Aquí es donde 'ext' debe definirse, dentro del scope de la función handleFileChange
     const ext = file.name.split(".").pop().toLowerCase();
@@ -59,6 +76,7 @@ export default function TextEditor({
     }
 
     e.target.value = null;
+    setFileSelectionModalOpen(false);
   };
 
   const handleSave = () => {
@@ -68,6 +86,7 @@ export default function TextEditor({
     );
     if (!fileName) {
       alert("Operación de guardar cancelada.");
+      setFileSelectionModalOpen(false);
       return;
     }
 
@@ -94,6 +113,7 @@ export default function TextEditor({
     alert(
       `Documento "${fileName}.txt" guardado con éxito. En futuras versiones se aceptarán más formatos de guardado.`
     );
+    setFileSelectionModalOpen(false);
   };
 
   // 1. FUNCIÓN PARA ABRIR EL GOOGLE PICKER PARA TEXTOS (TXT/DOCX)
@@ -102,6 +122,7 @@ export default function TextEditor({
       alert(
         "Google Drive API no cargada o no autenticada. Intenta recargar la página."
       );
+      setFileSelectionModalOpen(false);
       return;
     }
 
@@ -129,6 +150,7 @@ export default function TextEditor({
       alert(
         "El servicio de selección de archivos de Google no está listo. Intenta recargar la página."
       );
+      setFileSelectionModalOpen(false);
       return;
     }
     picker.setVisible(true);
@@ -152,9 +174,11 @@ export default function TextEditor({
             error.message || "Error desconocido"
           }. Asegúrate de tener permisos.`
         );
+      } finally {
+        setFileSelectionModalOpen(false); // <<-- AÑADIDO AQUÍ para cerrar el modal después de que todo haya terminado (éxito o error)
       }
     } else if (data.action === window.google.picker.Action.CANCEL) {
-      // Selección de archivo cancelada.
+      setFileSelectionModalOpen(false); // <<-- AÑADIDO AQUÍ si el usuario cancela la selección en Drive
     }
   };
 
@@ -299,6 +323,7 @@ export default function TextEditor({
       alert(
         "Las APIs de Google Drive no están cargadas o no estás autenticado."
       );
+      setFileSelectionModalOpen(false);
       return;
     }
 
@@ -315,6 +340,7 @@ export default function TextEditor({
       alert(
         "Nombre de archivo no proporcionado. La operación de guardar ha sido cancelada."
       );
+      setFileSelectionModalOpen(false);
       return;
     }
 
@@ -366,62 +392,64 @@ export default function TextEditor({
         errorMessage = error.message;
       }
       alert(`Error al subir el archivo a Google Drive: ${errorMessage}.`);
+    } finally {
+      setFileSelectionModalOpen(false); // <<-- AÑADIDO/CONFIRMADO AQUÍ, usando finally para asegurar que siempre se cierre.
     }
   };
-
+  const handleActionSelection = (source) => {
+    if (currentAction === "upload") {
+      if (source === "local") {
+        openFileDialog();
+      } else if (source === "drive") {
+        openGoogleDrivePicker();
+      }
+    } else if (currentAction === "download") {
+      if (source === "local") {
+        handleSave();
+      } else if (source === "drive") {
+        handleSaveToDrive();
+      }
+    }
+  };
   return (
     <div className="w-1/2 relative bg-white rounded-2xl shadow-lg flex flex-col overflow-hidden">
-      {/* Contenedor de botones */}
       <div className="flex justify-between items-center gap-3 p-4">
+        <h2 className="text-lg font-medium">Editor de Texto</h2>
+        {/* NUEVA DISPOSICIÓN: Agrupar todos los botones relevantes del editor */}
         <div className="flex gap-3">
+          {/* Botones de Cargar y Guardar */}
           <button
-            onClick={openFileDialog}
-            className="px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+            onClick={() => {
+              setCurrentAction("upload");
+              setFileSelectionModalOpen(true);
+            }}
+            className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
           >
-            Cargar archivo
+            <ArrowUpTrayIcon className="h-5 w-5" />
+            <span>Cargar</span>
           </button>
-          {/* NUEVO BOTÓN PARA CARGAR DESDE GOOGLE DRIVE */}
+
           <button
-            onClick={openGoogleDrivePicker}
-            className="px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
-            disabled={!googleAccessToken}
-            title={
-              !googleAccessToken
-                ? "Inicia sesión con Google para usar Drive"
-                : "Cargar archivo desde Google Drive"
-            }
+            onClick={() => {
+              setCurrentAction("download");
+              setFileSelectionModalOpen(true);
+            }}
+            className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
           >
-            Cargar archivo (Drive)
+            <ArrowDownTrayIcon className="h-5 w-5" />
+            <span>Guardar</span>
           </button>
+
+          {/* Botón de Insertar referencia (AHORA AL LADO) */}
           <button
-            onClick={handleSave}
-            className="px-3 py-1 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+            onClick={() => setModalOpen(true)}
+            className="flex items-center space-x-2 px-4 py-2 border border-indigo-600 text-indigo-600 rounded-lg hover:bg-indigo-50 transition"
           >
-            Guardar archivo
-          </button>
-          {/* NUEVO BOTÓN PARA GUARDAR EN GOOGLE DRIVE */}
-          <button
-            onClick={handleSaveToDrive}
-            className="px-3 py-1 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition"
-            disabled={!googleAccessToken}
-            title={
-              !googleAccessToken
-                ? "Inicia sesión con Google para usar Drive"
-                : "Guardar archivo en Google Drive"
-            }
-          >
-            Guardar archivo (Drive)
+            <PlusIcon className="h-5 w-5" />
+            <span>Insertar referencia</span>
           </button>
         </div>
-
-        <button
-          onClick={() => setModalOpen(true)}
-          className="px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
-        >
-          Insertar referencia
-        </button>
       </div>
-
       {/* Input de archivo oculto */}
       <input
         ref={fileInputRef}
@@ -440,6 +468,99 @@ export default function TextEditor({
         />
       </div>
 
+      {/* MODAL PARA SELECCIÓN DE ORIGEN/DESTINO DE ARCHIVOS */}
+      <Transition appear show={fileSelectionModalOpen} as={React.Fragment}>
+        <Dialog
+          as="div"
+          className="relative z-50"
+          onClose={() => setFileSelectionModalOpen(false)}
+        >
+          <Transition.Child
+            as={React.Fragment}
+            enter="ease-out duration-300"
+            enterFrom="opacity-0"
+            enterTo="opacity-100"
+            leave="ease-in duration-200"
+            leaveFrom="opacity-100"
+            leaveTo="opacity-0"
+          >
+            <div className="fixed inset-0 bg-black bg-opacity-50" />
+          </Transition.Child>
+
+          <div className="fixed inset-0 overflow-y-auto">
+            <div className="flex min-h-full items-center justify-center p-4 text-center">
+              <Transition.Child
+                as={React.Fragment}
+                enter="ease-out duration-300"
+                enterFrom="opacity-0 scale-95"
+                enterTo="opacity-100 scale-100"
+                leave="ease-in duration-200"
+                leaveFrom="opacity-100 scale-100"
+                leaveTo="opacity-0 scale-95"
+              >
+                <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
+                  <Dialog.Title
+                    as="h3"
+                    className="text-xl font-semibold leading-6 text-gray-900"
+                  >
+                    {currentAction === "upload"
+                      ? "Cargar archivo desde..."
+                      : "Guardar archivo en..."}
+                  </Dialog.Title>
+                  <div className="mt-4 space-y-4">
+                    {/* Opción Local */}
+                    <button
+                      onClick={() => handleActionSelection("local")}
+                      className="w-full flex items-center justify-center space-x-3 px-4 py-3 border border-gray-300 rounded-lg text-gray-800 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 transition"
+                    >
+                      <FolderOpenIcon className="h-6 w-6 text-indigo-600" />
+                      {/* <FaFolderOpen className="h-6 w-6 text-indigo-600" />  -- Si usas react-icons */}
+                      <span className="text-lg">Mi dispositivo</span>
+                    </button>
+
+                    {/* Opción Google Drive */}
+                    <button
+                      onClick={() => handleActionSelection("drive")}
+                      disabled={!googleAccessToken}
+                      className={`w-full flex items-center justify-center space-x-3 px-4 py-3 border border-gray-300 rounded-lg text-gray-800 transition ${
+                        !googleAccessToken
+                          ? "opacity-50 cursor-not-allowed"
+                          : "hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
+                      }`}
+                      title={
+                        !googleAccessToken
+                          ? "Inicia sesión con Google para usar Drive"
+                          : ""
+                      }
+                    >
+                      {/* Puedes usar una SVG de Google Drive si la tienes, o Heroicons/React Icons genéricos */}
+                      {currentAction === "upload" ? (
+                        <CloudArrowUpIcon className="h-6 w-6 text-indigo-600" />
+                      ) : (
+                        <CloudArrowDownIcon className="h-6 w-6 text-indigo-600" />
+                      )}
+                      {/* <FaGoogleDrive className="h-6 w-6 text-indigo-600" /> -- Si usas react-icons */}
+                      <span className="text-lg">Google Drive</span>
+                    </button>
+                  </div>
+
+                  <div className="mt-6 flex justify-end">
+                    <button
+                      type="button"
+                      className="px-4 py-2 bg-gray-300 rounded-lg hover:bg-gray-400 transition"
+                      onClick={() => setFileSelectionModalOpen(false)}
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </Dialog.Panel>
+              </Transition.Child>
+            </div>
+          </div>
+        </Dialog>
+      </Transition>
+
+      {/* Modal original de "Nueva referencia" */}
       <Dialog
         open={modalOpen}
         onClose={() => setModalOpen(false)}
@@ -534,7 +655,7 @@ export default function TextEditor({
             </button>
             <button
               onClick={handleGenerate}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+              className="px-4 py-2 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800"
             >
               Insertar
             </button>
