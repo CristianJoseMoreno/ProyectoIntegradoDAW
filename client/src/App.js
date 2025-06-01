@@ -86,10 +86,6 @@ function App() {
           const data = await res.json();
           if (data.success && data.googleAccessToken) {
             setGoogleAccessToken(data.googleAccessToken);
-            console.log(
-              "Google Access Token refrescado:",
-              data.googleAccessToken
-            );
           } else {
             console.warn(
               "No se pudo refrescar el Google Access Token o no se obtuvo.",
@@ -124,9 +120,7 @@ function App() {
               window.gapi.client.setApiKey(
                 process.env.REACT_APP_GOOGLE_API_KEY
               ); // Establece la API Key globalmente
-              console.log("Google Picker API cargada.");
               window.gapi.client.load("drive", "v3", () => {
-                console.log("Google Drive API (v3) cargada.");
                 setAreGoogleApisReady(true); // <--- ¡MARCAR COMO LISTO!
               });
             },
@@ -175,7 +169,8 @@ function App() {
     // Inicializa el cliente de código OAuth de Google.
     const client = window.google.accounts.oauth2.initCodeClient({
       client_id: process.env.REACT_APP_GOOGLE_CLIENT_ID,
-      scope: "openid email profile https://www.googleapis.com/auth/drive.file",
+      scope:
+        "openid email profile https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly",
       ux_mode: "popup",
       access_type: "offline", // Esto asegura que Google te dé un refresh_token
       callback: async (response) => {

@@ -134,19 +134,28 @@ app.post("/api/auth/google", async (req, res) => {
         name: payload.name,
         picture: payload.picture,
       });
+    } else {
+      // Si el usuario ya existe, asegúrate de actualizar la picture
+      // ya que podría cambiar en Google.
+      user.name = payload.name; // También actualiza el nombre por si acaso
+      user.picture = payload.picture;
     }
 
     // *** Guardar el refresh_token si se recibió ***
     // Google solo envía el refresh_token la primera vez que se autoriza 'offline'
     if (tokens.refresh_token) {
       user.googleRefreshToken = tokens.refresh_token;
-      console.log("Refresh Token guardado para el usuario:", user.email);
     }
 
     await user.save(); // Guarda o actualiza el usuario en la DB
 
     const jwtToken = jwt.sign(
-      { userId: user.googleId, email: user.email, name: user.name }, // Payload de tu JWT
+      {
+        userId: user.googleId,
+        email: user.email,
+        name: user.name,
+        picture: payload.picture,
+      }, // Payload de tu JWT
       process.env.JWT_SECRET,
       { expiresIn: "1h" }
     );
@@ -154,22 +163,15 @@ app.post("/api/auth/google", async (req, res) => {
     res.json({
       success: true,
       token: jwtToken, // Tu token de sesión de la app
-      user: {
-        id: user.googleId,
-        email: user.email,
-        name: user.name,
-        picture: user.picture,
-      }, // Información del usuario para el frontend
+
       googleAccessToken: tokens.access_token, // El access_token de Google (de corta duración)
     });
   } catch (err) {
     console.error("Error en /api/auth/google:", err);
-    res
-      .status(401)
-      .json({
-        success: false,
-        message: "Error en la autenticación de Google.",
-      });
+    res.status(401).json({
+      success: false,
+      message: "Error en la autenticación de Google.",
+    });
   }
 });
 
@@ -184,12 +186,10 @@ app.post(
       const user = await User.findOne({ googleId: userId });
 
       if (!user || !user.googleRefreshToken) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "No Google refresh token found for this user.",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "No Google refresh token found for this user.",
+        });
       }
 
       // Configurar el cliente con el refresh_token del usuario
@@ -208,12 +208,10 @@ app.post(
       });
     } catch (error) {
       console.error("Error al refrescar token de Google:", error);
-      res
-        .status(500)
-        .json({
-          success: false,
-          message: "Error al refrescar token de Google.",
-        });
+      res.status(500).json({
+        success: false,
+        message: "Error al refrescar token de Google.",
+      });
     }
   }
 );

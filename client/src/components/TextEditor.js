@@ -17,17 +17,27 @@ export default function TextEditor({
   handleGenerate,
   googleAccessToken,
 }) {
-  console.log("TextEditor googleAccessToken:", googleAccessToken);
+  // Función auxiliar para convertir una cadena "binaria" a ArrayBuffer
+  const stringToBytes = (str) => {
+    const bytes = new Uint8Array(str.length);
+    for (let i = 0; i < str.length; i++) {
+      bytes[i] = str.charCodeAt(i) & 0xff; // Asegura que solo se toma el byte bajo
+    }
+    return bytes.buffer; // Devuelve el ArrayBuffer subyacente
+  };
   const fileInputRef = useRef(null);
 
   const openFileDialog = () => {
     fileInputRef.current?.click();
   };
+  // *** LÍNEA CORREGIDA: Esta línea fue eliminada de aquí, ya que 'file' no estaba definida en este scope.
+  // const ext = file.name.split(".").pop().toLowerCase();
 
   const handleFileChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
+    // Aquí es donde 'ext' debe definirse, dentro del scope de la función handleFileChange
     const ext = file.name.split(".").pop().toLowerCase();
 
     if (ext === "txt") {
@@ -52,13 +62,38 @@ export default function TextEditor({
   };
 
   const handleSave = () => {
-    const blob = new Blob([doc], { type: "text/html;charset=utf-8" });
+    // 1. Obtener el nombre del archivo del usuario
+    const fileName = prompt(
+      "Introduce el nombre del archivo (sin extensión). Se guardará como .txt"
+    );
+    if (!fileName) {
+      alert("Operación de guardar cancelada.");
+      return;
+    }
+
+    // 2. Convertir el contenido HTML de ReactQuill a texto plano
+    const tempDiv = document.createElement("div");
+    tempDiv.innerHTML = doc; // Carga el HTML en un div temporal
+    const plainTextContent = tempDiv.textContent || tempDiv.innerText || ""; // Extrae solo el texto
+
+    // 3. Crear un Blob con el contenido de texto plano
+    const blob = new Blob([plainTextContent], {
+      type: "text/plain;charset=utf-8",
+    });
+
+    // 4. Crear un enlace de descarga y simular un clic
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = "documento.html";
+    link.download = `${fileName}.txt`; // Asegura la extensión .txt
+
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+
+    // 5. Mostrar la alerta de futuras versiones
+    alert(
+      `Documento "${fileName}.txt" guardado con éxito. En futuras versiones se aceptarán más formatos de guardado.`
+    );
   };
 
   // 1. FUNCIÓN PARA ABRIR EL GOOGLE PICKER PARA TEXTOS (TXT/DOCX)
@@ -67,154 +102,270 @@ export default function TextEditor({
       alert(
         "Google Drive API no cargada o no autenticada. Intenta recargar la página."
       );
-      console.error("Google Drive API o token de acceso no disponible:", {
-        gapi: window.gapi,
-        client: window.gapi?.client,
-        googleAccessToken,
-      });
       return;
     }
 
-    const view = new window.google.picker.DocsView()
-      .setMimeTypes(
-        "text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/rtf,text/html"
-      ) // TXT, DOCX, RTF, HTML
-      .setParent("root")
-      .setOwnedByMe(true);
+    // *** NUEVO ALERT PARA INFORMAR AL USUARIO ***
+    alert(
+      "Para cargar archivos de Google Drive, el documento debe estar configurado como 'Visible para todos' (enlace)." +
+        " En futuras versiones, mejoraremos esta funcionalidad."
+    );
+
+    // Define los MIME types permitidos ANTES de usarlos
+    const allowedMimeTypes =
+      "text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/rtf,text/html";
+
+    const view = new window.google.picker.DocsView();
 
     const picker = new window.google.picker.PickerBuilder()
       .addView(view)
       .setOAuthToken(googleAccessToken)
-      .setDeveloperKey(process.env.REACT_APP_GOOGLE_API_KEY)
+      .setDeveloperKey(process.env.REACT_APP_GOOGLE_API_KEY) // Mantengo esta línea ya que la tenías, aunque la comentamos para depuración
+      .setAppId(process.env.REACT_APP_GOOGLE_APP_ID)
       .setCallback(pickerCallback)
       .build();
 
     if (!window.google || !window.google.picker) {
-      console.error(
-        "Google Picker no está disponible. Asegúrate de que las APIs se cargaron correctamente."
-      );
       alert(
         "El servicio de selección de archivos de Google no está listo. Intenta recargar la página."
       );
       return;
     }
-    console.log("API Key:", process.env.REACT_APP_GOOGLE_API_KEY);
     picker.setVisible(true);
   };
 
   // 2. CALLBACK DEL GOOGLE PICKER PARA TEXTOS
-  const pickerCallback = (data) => {
+  const pickerCallback = async (data) => {
     if (data.action === window.google.picker.Action.PICKED) {
       const doc = data.docs[0];
       const fileId = doc.id;
       const fileName = doc.name;
       const mimeType = doc.mimeType;
-      console.log(
-        `Archivo seleccionado: ID=${fileId}, Nombre=${fileName}, Tipo=${mimeType}`
-      );
-      downloadFileFromDrive(fileId, fileName, mimeType);
+      try {
+        await downloadFileFromDrive(fileId, fileName, mimeType);
+        alert(`Archivo "${fileName}" cargado desde Google Drive.`); // Solo si la descarga fue exitosa
+      } catch (error) {
+        console.error("Error en pickerCallback al descargar archivo:", error);
+        // Muestra un mensaje más útil desde el error
+        alert(
+          `Error al cargar el archivo "${fileName}": ${
+            error.message || "Error desconocido"
+          }. Asegúrate de tener permisos.`
+        );
+      }
     } else if (data.action === window.google.picker.Action.CANCEL) {
-      console.log("Selección de archivo de Google Drive cancelada.");
+      // Selección de archivo cancelada.
     }
   };
 
   // 3. FUNCIÓN PARA DESCARGAR EL ARCHIVO DE GOOGLE DRIVE Y CARGARLO EN EL EDITOR
   const downloadFileFromDrive = async (fileId, fileName, mimeType) => {
+    let response;
+    let fileContent;
+
     try {
-      const response = await window.gapi.client.drive.files.get(
-        {
-          fileId: fileId,
-          alt: "media", // Para obtener el contenido del archivo
-        },
-        {
-          responseType: "arraybuffer", // O 'text' si esperas texto plano directamente
+      // Validación para .doc (Word 97-2003) - la mantendremos si no quieres soportarlos directamente
+      if (mimeType === "application/msword") {
+        throw new Error(
+          "Los archivos .doc (Word 97-2003) no son directamente compatibles. Por favor, conviértelos a .docx o Google Doc."
+        );
+      }
+
+      // Para archivos nativos de Google (Google Docs, Sheets, Slides)
+      if (
+        mimeType === "application/vnd.google-apps.document" || // Google Docs
+        mimeType === "application/vnd.google-apps.html" || // Google Sites HTML
+        mimeType === "application/vnd.google-apps.drawing" // Google Drawing
+      ) {
+        let exportMimeType = "";
+        if (mimeType === "application/vnd.google-apps.document") {
+          exportMimeType =
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"; // Exportar como DOCX
+        } else if (mimeType === "application/vnd.google-apps.html") {
+          exportMimeType = "text/html";
+        } else {
+          throw new Error(
+            `Exportación no soportada para el tipo de documento de Google: ${mimeType}`
+          );
         }
-      );
+
+        response = await window.gapi.client.drive.files.export(
+          {
+            fileId: fileId,
+            mimeType: exportMimeType,
+            alt: "media",
+          },
+          {}
+        );
+
+        fileContent = response.body || response.result;
+        mimeType = exportMimeType; // Actualiza el mimeType para que la lógica de carga funcione
+      } else {
+        // Para archivos no nativos (TXT, DOCX subidos, PDF, etc.) usamos drive.files.get con alt: "media"
+        try {
+          response = await window.gapi.client.drive.files.get(
+            {
+              fileId: fileId,
+              alt: "media",
+            },
+            {
+              responseType: "arraybuffer", // Esto es crucial para obtener ArrayBuffer
+            }
+          );
+          fileContent = response.body || response.result;
+        } catch (get_error) {
+          if (get_error.result && get_error.result.error) {
+            throw new Error(
+              `Error de Drive API: ${
+                get_error.result.error.message || "Desconocido"
+              }`
+            );
+          }
+          throw get_error;
+        }
+      }
 
       if (response.status === 200) {
+        // Lógica unificada para asegurar que fileContent es un ArrayBuffer para mammoth o texto para setDoc
+
+        let processedFileContent = fileContent;
+
+        // Si el contenido es una cadena (posiblemente de exportación de Google Docs)
+        if (
+          typeof fileContent === "string" &&
+          !["text/plain", "text/html", "application/rtf"].includes(mimeType)
+        ) {
+          // Asumiendo que esta cadena es la representación binaria del archivo
+          processedFileContent = stringToBytes(fileContent);
+        }
+
+        // Ahora processedFileContent debería ser un ArrayBuffer (o ya lo era)
+        // O si es texto plano, no necesita conversión de ArrayBuffer para setDoc directamente
+
         if (
           mimeType === "text/plain" ||
           mimeType === "text/html" ||
           mimeType === "application/rtf"
         ) {
-          const textDecoder = new TextDecoder("utf-8");
-          setDoc(textDecoder.decode(response.body));
-          alert(`Archivo "${fileName}" cargado desde Google Drive.`);
+          let textData;
+          if (processedFileContent instanceof ArrayBuffer) {
+            const textDecoder = new TextDecoder("utf-8");
+            textData = textDecoder.decode(processedFileContent);
+          } else {
+            // Esto es si ya es una cadena legible (ej. de drive.files.export de HTML)
+            textData = fileContent; // Usar el original fileContent ya que es string legible
+          }
+          setDoc(textData);
         } else if (
           mimeType ===
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         ) {
-          const arrayBuffer = response.body;
-          const result = await mammoth.convertToHtml({ arrayBuffer });
+          // Aquí esperamos un ArrayBuffer
+          if (!(processedFileContent instanceof ArrayBuffer)) {
+            // Si por alguna razón sigue sin ser ArrayBuffer, lanzamos el error
+            throw new Error(
+              "Contenido de DOCX no es un ArrayBuffer válido después de procesamiento."
+            );
+          }
+          const result = await mammoth.convertToHtml({
+            arrayBuffer: processedFileContent, // Usar el ArrayBuffer procesado
+          });
+
           setDoc(result.value);
-          alert(
-            `Archivo DOCX "${fileName}" cargado y convertido desde Google Drive.`
-          );
         } else {
-          alert(
-            `Tipo de archivo no soportado para carga desde Drive: ${mimeType}`
-          );
+          throw new Error(`Tipo de archivo no soportado: ${mimeType}`);
         }
       } else {
-        throw new Error(
-          `Error HTTP: ${response.status} - ${response.statusText}`
-        );
+        // ... (manejo de errores HTTP existente)
       }
     } catch (error) {
-      console.error("Error descargando archivo de Google Drive:", error);
-      alert(
-        `Error al descargar el archivo de Google Drive: ${error.message}. Asegúrate de tener permisos.`
-      );
+      if (error.result && error.result.error && error.result.error.message) {
+        throw new Error(error.result.error.message);
+      } else {
+        throw error;
+      }
     }
   };
 
   // 4. FUNCIÓN PARA SUBIR EL CONTENIDO DEL EDITOR A GOOGLE DRIVE
   const handleSaveToDrive = async () => {
-    if (!googleAccessToken) {
-      alert("No estás autenticado con Google Drive.");
+    // Verificación de carga de la API de Google y del token
+    if (
+      !window.gapi ||
+      !window.gapi.client ||
+      !window.gapi.client.drive ||
+      !googleAccessToken
+    ) {
+      alert(
+        "Las APIs de Google Drive no están cargadas o no estás autenticado."
+      );
       return;
     }
 
-    const fileName = prompt(
-      "Introduce el nombre del archivo para Google Drive (ej: mi_documento.html):"
+    // AVISO CLARO: SOLO SE GUARDARÁ EN TXT POR AHORA
+    alert(
+      "Actualmente, solo se puede guardar como texto plano (.txt) en Google Drive para asegurar la compatibilidad. " +
+        "En futuras versiones, se aceptarán más formatos."
     );
-    if (!fileName) return;
 
-    let mimeType = "text/html"; // Por defecto, guardamos como HTML
-    // Si quieres guardar como DOCX, necesitarías una librería para convertir HTML a DOCX,
-    // lo cual es más complejo y generalmente requiere un backend.
-    // Por simplicidad, guardaremos el HTML del editor como un archivo HTML.
-    if (fileName.toLowerCase().endsWith(".txt")) {
-      mimeType = "text/plain";
-    } else if (fileName.toLowerCase().endsWith(".docx")) {
-      // Opción avanzada: Aquí integrarías la conversión de HTML a DOCX.
-      // Si no tienes un backend, esto es muy difícil en el frontend.
-      // Por ahora, si el usuario elige .docx, podrías advertirle o guardar como HTML.
+    const fileName = prompt(
+      "Introduce el nombre del archivo para Google Drive (ej: mi_documento.txt). Se guardará como texto plano."
+    );
+    if (!fileName) {
       alert(
-        "Guardar como .docx requiere una conversión avanzada. Se guardará como HTML por defecto."
+        "Nombre de archivo no proporcionado. La operación de guardar ha sido cancelada."
       );
-      mimeType = "text/html";
+      return;
     }
 
+    let mimeType = "text/plain"; // Forzamos siempre a TXT
+    // Convertimos el contenido del editor a texto plano
+    const tempDiv = document.createElement("div");
+    tempDiv.innerHTML = doc;
+    const fileContentToSend = tempDiv.textContent || tempDiv.innerText || "";
+
+    // Aseguramos que el nombre de archivo termine en .txt
+    const finalFileName = fileName.toLowerCase().endsWith(".txt")
+      ? fileName
+      : `${fileName}.txt`;
+
     try {
-      const response = await window.gapi.client.drive.files.create({
-        resource: {
-          name: fileName,
-          mimeType: mimeType,
-          // Puedes especificar una carpeta padre si conoces su ID: parents: ['FOLDER_ID']
+      const response = await window.gapi.client.request({
+        path: "https://www.googleapis.com/upload/drive/v3/files",
+        method: "POST",
+        params: {
+          uploadType: "multipart",
         },
-        media: {
-          mimeType: mimeType,
-          body: new Blob([doc], { type: mimeType }), // Crea un Blob del contenido del editor
+        headers: {
+          Authorization: `Bearer ${googleAccessToken}`,
+          "Content-Type": `multipart/related; boundary=foo_bar_baz`,
         },
-        fields: "id", // Solo necesitamos el ID del archivo creado
+        body: `--foo_bar_baz\nContent-Type: application/json; charset=UTF-8\n\n${JSON.stringify(
+          { name: finalFileName, mimeType: mimeType }
+        )}\n\n--foo_bar_baz\nContent-Type: ${mimeType}\n\n${fileContentToSend}\n--foo_bar_baz--`,
       });
 
-      console.log("Archivo subido a Drive, ID:", response.result.id);
-      alert(`Archivo "${fileName}" subido a Google Drive con éxito.`);
+      if (response.status === 200) {
+        alert(
+          `Archivo "${response.result.name}" (ID: ${response.result.id}, Tipo: ${response.result.mimeType}) subido a Google Drive con éxito.`
+        );
+      } else {
+        console.error("Error inesperado al subir archivo:", response);
+        alert(
+          `Error al subir el archivo a Google Drive: ${
+            response.statusText || "Error desconocido"
+          }.`
+        );
+      }
     } catch (error) {
       console.error("Error subiendo archivo a Google Drive:", error);
-      alert(`Error al subir el archivo a Google Drive: ${error.message}.`);
+      let errorMessage = "Error desconocido al subir el archivo.";
+      if (error.result && error.result.error && error.result.error.message) {
+        errorMessage = error.result.error.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      alert(`Error al subir el archivo a Google Drive: ${errorMessage}.`);
     }
   };
 

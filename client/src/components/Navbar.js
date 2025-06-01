@@ -7,11 +7,20 @@ const googleLogoSrc = `${process.env.PUBLIC_URL}/logo_google.png`;
 const Navbar = ({ user, handleLogout, handleLoginClick }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
+  const [profileImageError, setProfileImageError] = useState(false);
 
   const internalHandleLogout = () => {
     handleLogout();
     setMenuOpen(false);
   };
+
+  // Restablecer el estado de error de la imagen si el usuario cambia (o al iniciar sesión)
+  React.useEffect(() => {
+    setProfileImageError(false); // Resetea el error cuando el user cambia
+  }, [user]);
+
+  // URL para el fallback de la imagen de perfil
+  const defaultProfileImageUrl = "https://via.placeholder.com/40?text=C"; // O alguna imagen de perfil por defecto tuya
 
   return (
     <nav className="fixed z-30 h-20 w-full px-5 sm:px-2 md:px-3 md:py-1 lg:px-20 flex items-center justify-between bg-white text-gray-600 navbar-expand-lg shadow-lg">
@@ -40,12 +49,32 @@ const Navbar = ({ user, handleLogout, handleLoginClick }) => {
 
             {/* Perfil y menú */}
             <div className="relative ml-4" ref={menuRef}>
-              <img
-                src={user?.picture || "https://via.placeholder.com/40"}
-                alt="Perfil"
-                className="w-9 h-9 rounded-full cursor-pointer border hover:scale-105 transition-transform"
-                onClick={() => setMenuOpen((prev) => !prev)}
-              />
+              {/* Lógica mejorada para la imagen de perfil */}
+              {user?.picture && !profileImageError ? (
+                <img
+                  src={user.picture}
+                  alt="Perfil"
+                  className="w-9 h-9 rounded-full cursor-pointer border hover:scale-105 transition-transform"
+                  onClick={() => setMenuOpen((prev) => !prev)}
+                  onError={(e) => {
+                    // Si la imagen de Google falla, establece el error a true
+                    console.error(
+                      "Error al cargar la imagen de perfil de Google:",
+                      e
+                    );
+                    setProfileImageError(true);
+                  }}
+                />
+              ) : (
+                // Fallback: si no hay imagen de Google o si la carga falló
+                <div
+                  className="w-9 h-9 rounded-full cursor-pointer border hover:scale-105 transition-transform bg-gray-300 flex items-center justify-center text-white text-sm font-semibold"
+                  onClick={() => setMenuOpen((prev) => !prev)}
+                >
+                  {user?.name ? user.name.charAt(0).toUpperCase() : "C"}
+                </div>
+              )}
+
               <div
                 className={`
                   absolute right-0 mt-2 w-48 bg-white border rounded-md shadow-lg z-50
