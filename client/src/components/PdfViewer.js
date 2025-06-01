@@ -37,7 +37,8 @@ export default function PdfViewer({
     removePdf(urlToRemove);
   };
 
-  // 1. FUNCIÓN PARA ABRIR EL GOOGLE PICKER
+  // 1. FUNCIÓN PARA ABRIR EL GOOGLE PICKER (PARA CARGAR PDF)
+  // Esta función sigue usando el Picker porque es para SELECCIONAR un PDF existente de Drive.
   const openGoogleDrivePicker = () => {
     // Verificar si las APIs de Google están cargadas y si tenemos un token de acceso
     if (!window.gapi || !window.gapi.client || !googleAccessToken) {
@@ -58,8 +59,6 @@ export default function PdfViewer({
     const picker = new window.google.picker.PickerBuilder()
       .addView(view)
       .setOAuthToken(googleAccessToken) // Usar el token de acceso del usuario
-      // IMPORTANTE: Asegúrate de tener una REACT_APP_GOOGLE_API_KEY en tu .env.local
-      // Esta API Key se obtiene del Google Cloud Console (APIs & Services -> Credentials)
       .setDeveloperKey(process.env.REACT_APP_GOOGLE_API_KEY)
       .setCallback(pickerCallback) // Función que manejará los resultados del Picker
       .build();
@@ -76,8 +75,7 @@ export default function PdfViewer({
     picker.setVisible(true); // Abre el Picker
   };
 
-  // 2. CALLBACK DEL GOOGLE PICKER
-  // ¡CAMBIO CLAVE AQUÍ: hacerla una función asíncrona!
+  // 2. CALLBACK DEL GOOGLE PICKER (PARA CARGAR PDF)
   const pickerCallback = async (data) => {
     if (data.action === window.google.picker.Action.PICKED) {
       const doc = data.docs[0]; // Asumimos que solo se selecciona un archivo
@@ -90,24 +88,18 @@ export default function PdfViewer({
         alert(
           `El archivo "${fileName}" (Tipo: ${mimeType}) no es un PDF. Por favor, selecciona un archivo PDF.`
         );
-        // IMPORTANTE: NO CERRAMOS el picker aquí. Se mantiene abierto.
-        return; // Salimos de la función para que el picker siga visible
+        return;
       }
 
       // Si es un PDF, procedemos a intentar descargarlo
       try {
         await downloadFileFromDrive(fileId, fileName);
-        // Si downloadFileFromDrive tiene éxito, el picker se cerrará automáticamente
-        // porque la acción PICKED ya ha sido manejada.
       } catch (error) {
-        // Si hay un error al descargar (ej. PDF corrupto o permisos),
-        // mostramos el alert y el picker se cierra (o ya está cerrado).
         console.error("Error en pickerCallback al descargar PDF:", error);
-        // Aquí mostramos el mensaje de error directamente desde el error lanzado por downloadFileFromDrive
         alert(`Error al cargar el PDF "${fileName}": ${error.message}.`);
       }
     } else if (data.action === window.google.picker.Action.CANCEL) {
-      // Aquí el picker se cierra porque el usuario lo canceló.
+      // El usuario canceló la selección.
     }
   };
 
@@ -127,39 +119,29 @@ export default function PdfViewer({
       if (response.status === 200) {
         let pdfData;
 
-        // CASO 1: response.body ya es un ArrayBuffer o Uint8Array (IDEAL)
         if (
           response.body instanceof ArrayBuffer ||
           response.body instanceof Uint8Array
         ) {
           pdfData = response.body;
-        }
-        // CASO 2: response.result es un ArrayBuffer (Algunas APIs o versiones de gapi)
-        else if (
+        } else if (
           response.result instanceof ArrayBuffer ||
           response.result instanceof Uint8Array
         ) {
           pdfData = response.result;
-        }
-        // CASO 3: response.body es una STRING que contiene los datos BINARIOS (¡TU CASO ACTUAL!)
-        else if (
+        } else if (
           typeof response.body === "string" &&
           response.body.startsWith("%PDF-")
         ) {
-          // Convertir la cadena (que en realidad son bytes) a un ArrayBuffer
-          // Esto se hace creando un Uint8Array a partir de los códigos de caracteres de la cadena
           const stringToBytes = (str) => {
             const bytes = new Uint8Array(str.length);
             for (let i = 0; i < str.length; i++) {
-              bytes[i] = str.charCodeAt(i) & 0xff; // Asegura que solo se toma el byte bajo
+              bytes[i] = str.charCodeAt(i) & 0xff;
             }
-            return bytes.buffer; // Devuelve el ArrayBuffer subyacente
+            return bytes.buffer;
           };
           pdfData = stringToBytes(response.body);
-        }
-        // CASO 4: Ninguno de los anteriores, error
-        else {
-          // Aquí lanzamos un error que será capturado por el catch de pickerCallback
+        } else {
           throw new Error(
             "La respuesta de Google Drive no contiene datos PDF binarios válidos (estructura inválida)."
           );
@@ -168,14 +150,12 @@ export default function PdfViewer({
         const fileBlob = new Blob([pdfData], { type: "application/pdf" });
         const fileUrl = URL.createObjectURL(fileBlob);
         addPdf({ url: fileUrl, name: fileName });
-        return; // Éxito: retorna sin errores
+        return;
       } else {
-        // Manejo de errores HTTP como 403, 404, etc.
         const errorBody =
           typeof response.body === "string"
             ? JSON.parse(response.body)
             : response.body;
-        // Lanzamos un error HTTP que será capturado por el catch de pickerCallback
         throw new Error(
           `Error HTTP: ${response.status} - ${
             errorBody?.error?.message ||
@@ -185,10 +165,129 @@ export default function PdfViewer({
         );
       }
     } catch (error) {
-      // Re-lanzamos cualquier error para que sea capturado en pickerCallback
       throw error;
     }
   };
+
+  // --- FUNCIÓN PARA GUARDAR EL PDF ACTIVO DIRECTAMENTE EN GOOGLE DRIVE CON PROMPT DE NOMBRE ---
+  const savePdfToDrive = async () => {
+    if (!activePdfUrl) {
+      alert("No hay un PDF activo para guardar.");
+      return;
+    }
+
+    if (!googleAccessToken) {
+      alert(
+        "No estás autenticado con Google. Por favor, inicia sesión para guardar en Drive."
+      );
+      return;
+    }
+
+    // Identificar el PDF activo que se quiere guardar
+    const activePdf = pdfs.find((pdf) => pdf.url === activePdfUrl);
+    if (!activePdf) {
+      alert("No se encontró el PDF activo para guardar.");
+      return;
+    }
+
+    // Pedir el nombre del archivo al usuario usando prompt
+    const defaultFileName = activePdf.name.endsWith(".pdf")
+      ? activePdf.name.slice(0, -4) // Quitar .pdf si ya lo tiene para sugerir solo el nombre
+      : activePdf.name;
+
+    const fileName = prompt(
+      `Introduce el nombre del archivo para Google Drive (se guardará como .pdf):`,
+      defaultFileName
+    );
+
+    if (!fileName) {
+      alert("Operación de guardar cancelada. No se proporcionó un nombre.");
+      return;
+    }
+
+    // Asegurarse de que el nombre termina en .pdf
+    const finalFileName = fileName.toLowerCase().endsWith(".pdf")
+      ? fileName
+      : `${fileName}.pdf`;
+
+    // Convertir la URL del blob a un objeto Blob
+    let blob;
+    try {
+      const response = await fetch(activePdf.url);
+      blob = await response.blob();
+    } catch (error) {
+      console.error("Error al obtener el Blob del PDF activo:", error);
+      alert(
+        "No se pudo preparar el PDF para guardar. Asegúrate de que el PDF esté cargado correctamente."
+      );
+      return;
+    }
+
+    // Verificar que gapi.client.drive esté disponible antes de hacer la solicitud
+    if (!window.gapi || !window.gapi.client || !window.gapi.client.drive) {
+      alert(
+        "Las APIs de Google Drive no están cargadas o no se han inicializado correctamente. Intenta recargar la página."
+      );
+      console.error("gapi.client.drive no está disponible:", window.gapi);
+      return;
+    }
+
+    // Metadatos del archivo para la API de Drive
+    const metadata = {
+      name: finalFileName,
+      mimeType: "application/pdf",
+      // No especificamos 'parents' para que se suba a la raíz de Google Drive
+    };
+
+    // Crear un objeto FormData para la subida multipart
+    const form = new FormData();
+    form.append(
+      "metadata",
+      new Blob([JSON.stringify(metadata)], { type: "application/json" })
+    );
+    form.append("file", blob); // Aquí va el Blob del contenido del PDF
+
+    try {
+      // Realizar la solicitud de subida a la API de Google Drive
+      const response = await window.gapi.client.request({
+        path: "https://www.googleapis.com/upload/drive/v3/files",
+        method: "POST",
+        params: { uploadType: "multipart" },
+        headers: {
+          Authorization: `Bearer ${googleAccessToken}`,
+          // FormData se encarga de 'Content-Type': 'multipart/form-data; boundary=...' automáticamente
+        },
+        body: form, // FormData maneja el body y el Content-Type por nosotros
+      });
+
+      if (response.status === 200) {
+        alert(
+          `PDF "${response.result.name}" subido exitosamente a Google Drive.`
+        );
+        console.log("PDF guardado en Drive:", response.result);
+      } else {
+        console.error("Error al subir el PDF:", response);
+        alert(
+          `Error al subir el PDF a Google Drive: ${
+            response.statusText || "Error desconocido"
+          }.`
+        );
+      }
+    } catch (error) {
+      console.error("Excepción al subir PDF a Drive:", error);
+      let errorMessage = "Error desconocido al subir el PDF.";
+      if (error.result && error.result.error && error.result.error.message) {
+        errorMessage = error.result.error.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      alert(`Error al subir el PDF a Google Drive: ${errorMessage}.`);
+    }
+  };
+
+  // El `savePickerCallback` y `DocsUploadView` se han eliminado porque ya no se usa el Picker para guardar.
+  // Si deseas mantenerlo para alguna futura funcionalidad, deberías reincorporarlo.
+  // Por ahora, solo se usa para 'Cargar PDF (Drive)'.
 
   return (
     <div className="w-1/2 bg-white p-4 rounded-2xl shadow-lg flex flex-col">
@@ -203,7 +302,7 @@ export default function PdfViewer({
           >
             Cargar PDF (local)
           </button>
-          {/* NUEVO BOTÓN PARA CARGAR DESDE GOOGLE DRIVE */}
+          {/* BOTÓN PARA CARGAR DESDE GOOGLE DRIVE (USA EL GOOGLE PICKER) */}
           <button
             onClick={openGoogleDrivePicker}
             className="px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
@@ -216,6 +315,22 @@ export default function PdfViewer({
             }
           >
             Cargar PDF (Drive)
+          </button>
+          {/* BOTÓN PARA GUARDAR EN GOOGLE DRIVE (SUBIDA DIRECTA CON PROMPT) */}
+          <button
+            onClick={savePdfToDrive}
+            className="px-3 py-1 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition"
+            // Deshabilitar si no hay token de acceso de Google o no hay un PDF activo
+            disabled={!googleAccessToken || !activePdfUrl}
+            title={
+              !googleAccessToken
+                ? "Inicia sesión con Google para guardar en Drive"
+                : !activePdfUrl
+                ? "Selecciona un PDF para guardar"
+                : "Guardar PDF en Google Drive"
+            }
+          >
+            Guardar PDF (Drive)
           </button>
         </div>
         <input
