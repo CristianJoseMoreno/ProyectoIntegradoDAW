@@ -8,7 +8,7 @@ module.exports = {
           foreground: "hsl(211 100% 99%)",
         },
         "bg-default-section": "#F3F4F6",
-        "bg-about-us-mint": "#48A29A",
+        "bg-about-us": "#2094f3",
       },
       boxShadow: {
         md: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
