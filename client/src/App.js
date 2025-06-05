@@ -245,7 +245,7 @@ function App() {
           path="/references"
           element={
             <PrivateRoute user={user}>
-              <References />
+              <References user={user} /> {/* <--- ¡ESTE ES EL CAMBIO! */}
             </PrivateRoute>
           }
         />
