@@ -10,13 +10,11 @@ const { OAuth2Client } = require("google-auth-library");
 // Importaciones de módulos
 const authenticateAppToken = require("./middleware/authMiddleware"); // Tu middleware de autenticación JWT
 const citationRoutes = require("./routes/citations");
-const documentRoutes = require("./routes/documentRoutes");
-const referenceRoutes = require("./routes/referenceRoutes");
+const documentRoutes = require("./routes/documentRoutes"); // Importación del router de documentos
+const referenceRoutes = require("./routes/referenceRoutes"); // Importación del router de referencias
 
-// Importar modelos (ahora que están modularizados)
+// Importar modelos
 const User = require("./models/User"); // Importa el modelo de usuario
-// const Document = require("./models/Document"); // Ya no necesitas importarlo aquí si solo lo usas en el controlador
-// const Reference = require("./models/Reference"); // Ya no necesitas importarlo aquí si solo lo usas en el controlador
 
 const app = express();
 
@@ -42,11 +40,11 @@ app.use(
       ],
       scriptSrc: [
         "'self'",
-        "'unsafe-inline'",
+        "'unsafe-inline'", // Considera revisar esto si puedes usar hashes/nonces
         "https://accounts.google.com",
         "https://apis.google.com",
       ],
-      styleSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'"], // Considera revisar esto si puedes usar hashes/nonces
       connectSrc: [
         "'self'",
         "http://localhost:5000",
@@ -105,6 +103,7 @@ app.post("/api/auth/google", async (req, res) => {
         picture: payload.picture,
       });
     } else {
+      // Actualiza la información del usuario si ya existe
       user.name = payload.name;
       user.picture = payload.picture;
     }
@@ -115,6 +114,7 @@ app.post("/api/auth/google", async (req, res) => {
 
     await user.save(); // Guarda o actualiza el usuario en la DB
 
+    // Genera tu JWT para la sesión de la aplicación
     const jwtToken = jwt.sign(
       {
         userId: user._id, // ¡Importante! Usamos el _id de MongoDB del usuario
@@ -123,7 +123,7 @@ app.post("/api/auth/google", async (req, res) => {
         picture: payload.picture,
       },
       process.env.JWT_SECRET,
-      { expiresIn: "1h" }
+      { expiresIn: "8h" } // El token expira en 8 horas
     );
 
     res.json({
@@ -140,6 +140,7 @@ app.post("/api/auth/google", async (req, res) => {
   }
 });
 
+// Ruta para refrescar el token de acceso de Google
 app.post(
   "/api/google/refresh-token",
   authenticateAppToken, // Protegida por tu JWT de aplicación
@@ -177,14 +178,18 @@ app.post(
   }
 );
 
-// --- Rutas de la Aplicación (Protegidas por JWT de app) ---
+// --- Rutas de la Aplicación (Protegidas por JWT de app mediante sus propios routers) ---
+
 // Las rutas de citación no necesitan autenticación si solo formatean
 app.use("/api", citationRoutes);
 
-// Las rutas de documentos y referencias sí necesitan autenticación
-// Se aplica el middleware a todas las rutas que usen documentRoutes y referenceRoutes
-app.use("/api", authenticateAppToken, documentRoutes);
-app.use("/api", authenticateAppToken, referenceRoutes);
+// Las rutas de documentos y referencias tienen su propio middleware de autenticación
+// dentro de sus archivos de ruta (documentRoutes.js, referenceRoutes.js)
+// Por lo tanto, NO necesitamos aplicar authenticateAppToken aquí de nuevo.
+app.use("/api", documentRoutes); // <--- CAMBIO AQUÍ: Quitamos authenticateAppToken
+app.use("/api", referenceRoutes); // <--- ASUMO el mismo cambio para referenceRoutes
+
+// Rutas de usuario (perfil, etc.) que sí necesitan autenticación directamente aquí
 app.get("/api/users/me", authenticateAppToken, async (req, res) => {
   try {
     // req.user.userId viene del token decodificado por authenticateToken
@@ -204,7 +209,7 @@ app.get("/api/users/me", authenticateAppToken, async (req, res) => {
   }
 });
 
-// --- NUEVA RUTA: Actualizar Perfil y Preferencias del Usuario ---
+// Ruta para actualizar Perfil y Preferencias del Usuario
 app.put("/api/users/me", authenticateAppToken, async (req, res) => {
   try {
     const { name, preferredCitationStyles } = req.body;

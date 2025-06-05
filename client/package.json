@@ -12,6 +12,7 @@
     "@heroicons/react": "^2.2.0",
     "@react-oauth/google": "^0.12.2",
     "@uiw/react-codemirror": "^4.23.12",
+    "axios": "^1.9.0",
     "citation-js": "^0.7.19",
     "customize-cra": "^1.0.0",
     "file-saver": "^2.0.5",
