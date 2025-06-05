@@ -1,128 +1,222 @@
-import React, { useState } from "react";
-import ReferenceCard from "./ReferenceCard";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+// src/sections/ReferencesListSection.js
+import React, { useState, useEffect } from "react";
+import ReferenceCard from "../components/ReferenceCard";
+import ReferenceFormModal from "../components/ReferenceFormModal";
 import { faThLarge, faList } from "@fortawesome/free-solid-svg-icons";
 
 function ReferencesListSection() {
-  const [isGridView, setIsGridView] = useState(true); // Controla la vista de tarjetas
+  const [references, setReferences] = useState([]); // Estado para las referencias reales del backend
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false); // Estado para controlar la modal de añadir/editar
+  const [referenceToEdit, setReferenceToEdit] = useState(null); // Estado para la referencia que se está editando
 
-  // Datos de ejemplo para las referencias (en un escenario real vendrían de una API)
-  const references = [
-    {
-      id: 1,
-      title: "Desarrollo Web con React",
-      description:
-        "Proyecto de creación de una aplicación web interactiva utilizando React y sus hooks.",
-      category: "Software",
-      year: 2023,
-      tags: ["React", "JavaScript", "Frontend"],
-      imageUrl: "https://via.placeholder.com/150/0000FF/FFFFFF?text=React",
-    },
-    {
-      id: 2,
-      title: "Diseño de Base de Datos SQL",
-      description:
-        "Normalización y optimización de esquemas de bases de datos relacionales para un ERP.",
-      category: "Bases de Datos",
-      year: 2022,
-      tags: ["SQL", "MySQL", "Backend"],
-      imageUrl: "https://via.placeholder.com/150/FF0000/FFFFFF?text=SQL",
-    },
-    {
-      id: 3,
-      title: "Análisis de Datos con Python",
-      description:
-        "Uso de Pandas y Matplotlib para el análisis exploratorio de datos de ventas.",
-      category: "Ciencia de Datos",
-      year: 2024,
-      tags: ["Python", "Pandas", "DataViz"],
-      imageUrl: "https://via.placeholder.com/150/00FF00/FFFFFF?text=Python",
-    },
-    {
-      id: 4,
-      title: "Construcción de API RESTful",
-      description:
-        "Implementación de una API REST utilizando Node.js y Express para una aplicación móvil.",
-      category: "Backend",
-      year: 2023,
-      tags: ["Node.js", "Express", "API"],
-      imageUrl: "https://via.placeholder.com/150/FFFF00/000000?text=Node",
-    },
-    {
-      id: 5,
-      title: "Despliegue en la Nube con AWS",
-      description:
-        "Configuración y despliegue de una aplicación web escalable en servicios de AWS (EC2, S3, RDS).",
-      category: "DevOps",
-      year: 2024,
-      tags: ["AWS", "Cloud", "DevOps"],
-      imageUrl: "https://via.placeholder.com/150/FF00FF/FFFFFF?text=AWS",
-    },
-    {
-      id: 6,
-      title: "Desarrollo de Apps Móviles con Flutter",
-      description:
-        "Creación de una aplicación móvil multiplataforma para gestión de tareas.",
-      category: "Desarrollo Móvil",
-      year: 2024,
-      tags: ["Flutter", "Dart", "Mobile"],
-      imageUrl: "https://via.placeholder.com/150/00FFFF/000000?text=Flutter",
-    },
-  ];
+  // Función para obtener el token de autenticación (adapta esto a tu método)
+  const getToken = () => localStorage.getItem("token");
+
+  // Efecto para cargar las referencias al montar el componente
+  useEffect(() => {
+    fetchReferences();
+  }, []); // Se ejecuta una vez al montar
+
+  const fetchReferences = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const token = getToken();
+      if (!token) {
+        throw new Error("No autenticado. Por favor, inicia sesión.");
+      }
+
+      const response = await fetch("/api/references", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.message || "Error al cargar las referencias."
+        );
+      }
+
+      const data = await response.json();
+      setReferences(data); // Asume que el backend devuelve un array de referencias
+    } catch (err) {
+      console.error("Error al obtener referencias:", err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveReference = async (formData) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const token = getToken();
+      if (!token) {
+        throw new Error("No autenticado. Por favor, inicia sesión.");
+      }
+
+      let response;
+      if (referenceToEdit) {
+        // Lógica para ACTUALIZAR una referencia existente
+        response = await fetch(`/api/references/${referenceToEdit._id}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(formData), // Envía los datos del formulario
+        });
+      } else {
+        // Lógica para CREAR una nueva referencia
+        response = await fetch("/api/references", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(formData), // Envía los datos del formulario
+        });
+      }
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Error al guardar la referencia.");
+      }
+
+      // Después de guardar/actualizar, vuelve a cargar las referencias para tener la lista actualizada
+      await fetchReferences();
+      closeModal(); // Cierra la modal
+    } catch (err) {
+      console.error("Error al guardar referencia:", err);
+      setError(err.message);
+      alert(`Error al guardar la referencia: ${err.message}`); // Notificar al usuario
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteReference = async (id) => {
+    if (
+      !window.confirm(
+        "¿Estás seguro de que quieres eliminar esta referencia? Esta acción es irreversible."
+      )
+    ) {
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const token = getToken();
+      if (!token) {
+        throw new Error("No autenticado. Por favor, inicia sesión.");
+      }
+
+      const response = await fetch(`/api/references/${id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.message || "Error al eliminar la referencia."
+        );
+      }
+
+      // Actualiza el estado localmente para una UI más rápida
+      setReferences((prevRefs) => prevRefs.filter((ref) => ref._id !== id));
+      alert("Referencia eliminada con éxito.");
+    } catch (err) {
+      console.error("Error al eliminar referencia:", err);
+      setError(err.message);
+      alert(`Error al eliminar la referencia: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Funciones para controlar la modal
+  const openAddModal = () => {
+    setReferenceToEdit(null); // Asegura que el formulario es para una nueva referencia
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (reference) => {
+    setReferenceToEdit(reference); // Pasa la referencia a editar a la modal
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setReferenceToEdit(null); // Limpia la referencia al cerrar la modal
+  };
 
   return (
-    <section className="flex flex-col h-full bg-white rounded-3xl p-6 md:p-8 shadow-lg overflow-hidden">
+    <section className="flex flex-col h-full bg-white rounded-3xl p-6 md:p-8 shadow-lg overflow-hidden bg-gray-100">
       {/* Encabezado de la sección de referencias */}
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl md:text-3xl font-bold text-gray-900 text-center w-full">
+        <h2 className="text-2xl md:text-3xl font-bold text-gray-900 text-center w-full text-gray-100">
           Mis Referencias
         </h2>
 
-        {/* Acciones de vista */}
-        <div className="flex items-center space-x-2">
+        {/* Acciones de vista y botón Añadir */}
+        <div className="flex items-center space-x-2 flex-shrink-0">
           <button
-            onClick={() => setIsGridView(true)}
-            className={`p-2 rounded-lg transition-colors duration-200 
-              ${
-                isGridView
-                  ? "bg-blue-500 text-white shadow-md"
-                  : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-              }`}
-            aria-label="Ver en cuadrícula"
+            onClick={openAddModal} // Botón para añadir nueva referencia
+            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-colors duration-200 text-sm md:text-base"
           >
-            <FontAwesomeIcon icon={faThLarge} />
-          </button>
-          <button
-            onClick={() => setIsGridView(false)}
-            className={`p-2 rounded-lg transition-colors duration-200 
-              ${
-                !isGridView
-                  ? "bg-blue-500 text-white shadow-md"
-                  : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-              }`}
-            aria-label="Ver en lista"
-          >
-            <FontAwesomeIcon icon={faList} />
+            Añadir Referencia
           </button>
         </div>
       </div>
 
-      {/* Contenedor de las tarjetas de referencias */}
+      {loading && (
+        <p className="text-center text-gray-600 dark:text-gray-300">
+          Cargando referencias...
+        </p>
+      )}
+      {error && (
+        <p className="text-center text-red-600 dark:text-red-400">
+          Error: {error}
+        </p>
+      )}
+
+      {!loading && !error && references.length === 0 && (
+        <p className="text-center text-gray-600 mt-4 dark:text-gray-300">
+          No tienes referencias guardadas. ¡Añade una!
+        </p>
+      )}
+
       <div
-        className={`flex-1 overflow-y-auto pr-2 -mr-2 ${
-          isGridView
-            ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-            : "flex flex-col gap-4"
-        }`}
+        className="flex-1 overflow-y-auto pr-2 -mr-2 flex flex-col gap-4" // Siempre en vista de lista
       >
-        {references.map((ref) => (
-          <ReferenceCard
-            key={ref.id}
-            reference={ref}
-            isListView={!isGridView}
-          />
-        ))}
+        {!loading &&
+          !error &&
+          references.map((ref) => (
+            <ReferenceCard
+              key={ref._id} // Usar _id de MongoDB
+              reference={ref}
+              isListView={true} // Siempre es vista de lista
+              onEdit={openEditModal} // Pasa la función para editar
+              onDelete={handleDeleteReference} // Pasa la función para eliminar
+            />
+          ))}
       </div>
+
+      {/* Modal para añadir/editar referencia */}
+      <ReferenceFormModal
+        isOpen={isModalOpen}
+        onClose={closeModal}
+        onSave={handleSaveReference}
+        referenceToEdit={referenceToEdit}
+      />
     </section>
   );
 }
