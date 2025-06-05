@@ -83,7 +83,7 @@ const Landing = ({ handleLoginClick }) => {
         id="sobre-nosotros"
         className="bg-bg-default-section relative py-26 md:py-34 overflow-hidden"
       >
-        <div className="absolute inset-1 transform -skew-y-[8deg] origin-top-left bg-bg-about-us-mint z-0"></div>
+        <div className="absolute inset-1 transform -skew-y-[8deg] origin-top-left bg-bg-about-us z-0"></div>
 
         {/* Contenido de la sección "Sobre Nosotros" */}
         <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 items-center relative z-10">

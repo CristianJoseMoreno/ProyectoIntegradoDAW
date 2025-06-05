@@ -4,24 +4,60 @@ function UserProfile({ user, loading, error, onUpdateUser }) {
   const [userName, setUserName] = useState("");
   const [userTitle] = useState("Team Manager");
   const [userLocation] = useState("Arizona, United States");
-  const [preferredCitationStyles, setPreferredCitationStyles] = useState("");
-
-  // Estados de edición separados para cada sección
+  const [preferredCitationStyles, setPreferredCitationStyles] = useState([]); // Ahora es un array para manejar los estilos individualmente
   const [isEditingPersonalInfo, setIsEditingPersonalInfo] = useState(false);
   const [isEditingPreferences, setIsEditingPreferences] = useState(false);
-
   const [showAddFormatModal, setShowAddFormatModal] = useState(false);
+  const [availableCslStyles, setAvailableCslStyles] = useState([]); // Nuevo estado para los estilos CSL disponibles
+  const [selectedCslStyle, setSelectedCslStyle] = useState(""); // Nuevo estado para el estilo CSL seleccionado en la modal
 
   useEffect(() => {
     if (user) {
       setUserName(user.name || "");
-      setPreferredCitationStyles(
-        user.preferredCitationStyles?.join(", ") || ""
-      );
+      // Asegúrate de que user.preferredCitationStyles sea un array. Si es null/undefined, inicializa como array vacío.
+      setPreferredCitationStyles(user.preferredCitationStyles || []);
     }
   }, [user]);
 
-  // Función de guardado que recibe qué sección se está guardando
+  // Efecto para cargar los estilos CSL disponibles cuando la modal se abre
+  // En UserProfile.js, dentro del useEffect que se activa con showAddFormatModal
+  useEffect(() => {
+    if (showAddFormatModal) {
+      const fetchCslStyles = async () => {
+        try {
+          console.log(
+            "Intentando cargar estilos CSL desde /api/citation/styles"
+          );
+          const response = await fetch("/api/citation/styles");
+
+          console.log("Respuesta del fetch:", response); // Revisa el objeto Response
+
+          if (!response.ok) {
+            // Si la respuesta no es OK, intenta leer el texto para ver si hay un error HTTP
+            const errorText = await response.text();
+            console.error("Respuesta no OK:", response.status, errorText);
+            throw new Error(
+              `Error al cargar los estilos CSL disponibles: ${response.status} - ${errorText}`
+            );
+          }
+
+          // Intenta clonar la respuesta antes de .json() para poder leerla dos veces (si fuera necesario)
+          const responseClone = response.clone();
+          const data = await response.json();
+          console.log("Datos CSL recibidos (JSON):", data); // Verifica que los datos son los esperados
+
+          setAvailableCslStyles(data.styles);
+          if (data.styles.length > 0) {
+            setSelectedCslStyle(data.styles[0].value);
+          }
+        } catch (err) {
+          console.error("Error fetching CSL styles:", err); // Este es el error que ya ves
+        }
+      };
+      fetchCslStyles();
+    }
+  }, [showAddFormatModal]);
+
   const handleSave = async (e, section) => {
     e.preventDefault();
     let updatedFields = {};
@@ -32,10 +68,7 @@ function UserProfile({ user, loading, error, onUpdateUser }) {
       setIsEditingPersonalInfo(false);
     } else if (section === "preferences") {
       updatedFields = {
-        preferredCitationStyles: preferredCitationStyles
-          .split(",")
-          .map((s) => s.trim())
-          .filter((s) => s !== ""),
+        preferredCitationStyles: preferredCitationStyles, // Envía el array directamente
       };
       await onUpdateUser(updatedFields);
       setIsEditingPreferences(false);
@@ -48,6 +81,27 @@ function UserProfile({ user, loading, error, onUpdateUser }) {
 
   const handleCloseAddFormatModal = () => {
     setShowAddFormatModal(false);
+    setSelectedCslStyle(""); // Resetea la selección al cerrar
+  };
+
+  const handleAddCslStyle = () => {
+    if (
+      selectedCslStyle &&
+      !preferredCitationStyles.includes(selectedCslStyle)
+    ) {
+      setPreferredCitationStyles((prevStyles) => [
+        ...prevStyles,
+        selectedCslStyle,
+      ]);
+      setShowAddFormatModal(false); // Cierra la modal después de añadir
+      setSelectedCslStyle(""); // Resetea la selección
+    }
+  };
+
+  const handleRemoveCslStyle = (styleToRemove) => {
+    setPreferredCitationStyles((prevStyles) =>
+      prevStyles.filter((style) => style !== styleToRemove)
+    );
   };
 
   if (loading) {
@@ -88,7 +142,7 @@ function UserProfile({ user, loading, error, onUpdateUser }) {
               Información Personal
             </h3>
             <button
-              onClick={() => setIsEditingPersonalInfo((prev) => !prev)} // Controla su propio estado
+              onClick={() => setIsEditingPersonalInfo((prev) => !prev)}
               className="text-blue-500 hover:text-blue-700 font-medium transition-colors duration-200"
             >
               {isEditingPersonalInfo ? "Cancelar" : "Editar"}
@@ -101,7 +155,7 @@ function UserProfile({ user, loading, error, onUpdateUser }) {
               alt="User Avatar"
               className="w-24 h-24 rounded-full object-cover mb-4 ring-4 ring-blue-300"
             />
-            {isEditingPersonalInfo ? ( // Condición basada en su propio estado
+            {isEditingPersonalInfo ? (
               <input
                 type="text"
                 value={userName}
@@ -115,9 +169,9 @@ function UserProfile({ user, loading, error, onUpdateUser }) {
             <p className="text-gray-600 text-sm">{userLocation}</p>
           </div>
 
-          {isEditingPersonalInfo && ( // Botón Guardar para Información Personal
+          {isEditingPersonalInfo && (
             <button
-              onClick={(e) => handleSave(e, "personalInfo")} // Pasa el identificador de la sección
+              onClick={(e) => handleSave(e, "personalInfo")}
               className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-200 shadow-md mt-auto"
             >
               Guardar Cambios
@@ -133,7 +187,7 @@ function UserProfile({ user, loading, error, onUpdateUser }) {
             </h3>
             {/* Botón Editar para Preferencias */}
             <button
-              onClick={() => setIsEditingPreferences((prev) => !prev)} // Controla su propio estado
+              onClick={() => setIsEditingPreferences((prev) => !prev)}
               className="text-blue-500 hover:text-blue-700 font-medium transition-colors duration-200"
             >
               {isEditingPreferences ? "Cancelar" : "Editar"}
@@ -146,38 +200,68 @@ function UserProfile({ user, loading, error, onUpdateUser }) {
                 htmlFor="preferredCitationStyles"
                 className="block text-sm font-medium text-gray-700 mb-2"
               >
-                Estilos de Citación Preferidos (separados por coma)
+                Estilos de Citación Preferidos
               </label>
-              {isEditingPreferences ? ( // Condición basada en su propio estado
+              {isEditingPreferences ? (
                 <>
-                  <input
-                    type="text"
-                    id="preferredCitationStyles"
-                    name="preferredCitationStyles"
-                    value={preferredCitationStyles}
-                    onChange={(e) => setPreferredCitationStyles(e.target.value)}
-                    placeholder="ej. apa, mla, chicago"
-                    className="block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-gray-900"
-                  />
-                  {/* Botón Añadir Formato, visible solo si se edita preferencias */}
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {preferredCitationStyles.length > 0 ? (
+                      preferredCitationStyles.map((style) => (
+                        <span
+                          key={style}
+                          className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800"
+                        >
+                          {style}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveCslStyle(style)}
+                            className="ml-2 -mr-0.5 h-4 w-4 rounded-full flex items-center justify-center text-blue-600 hover:bg-blue-200 hover:text-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                          >
+                            <span className="sr-only">
+                              Quitar estilo {style}
+                            </span>
+                            <svg
+                              className="h-2 w-2"
+                              stroke="currentColor"
+                              fill="none"
+                              viewBox="0 0 8 8"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth="1.5"
+                                d="M1 1l6 6m0-6L1 7"
+                              />
+                            </svg>
+                          </button>
+                        </span>
+                      ))
+                    ) : (
+                      <p className="text-gray-500 text-sm">
+                        Ningún estilo añadido.
+                      </p>
+                    )}
+                  </div>
                   <button
                     onClick={handleOpenAddFormatModal}
-                    className="mt-2 bg-blue-500 hover:bg-blue-600 text-white font-bold py-1 px-3 rounded-lg text-sm transition-colors duration-200 shadow-md"
+                    className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-1 px-3 rounded-lg text-sm transition-colors duration-200 shadow-md"
                   >
                     Añadir Formato
                   </button>
                 </>
               ) : (
                 <p className="block w-full px-3 py-2 border border-gray-200 bg-gray-100 rounded-md sm:text-sm text-gray-900 break-words">
-                  {preferredCitationStyles || "Ninguno"}
+                  {preferredCitationStyles.length > 0
+                    ? preferredCitationStyles.join(", ")
+                    : "Ninguno"}
                 </p>
               )}
             </div>
           </div>
 
-          {isEditingPreferences && ( // Botón Guardar para Preferencias
+          {isEditingPreferences && (
             <button
-              onClick={(e) => handleSave(e, "preferences")} // Pasa el identificador de la sección
+              onClick={(e) => handleSave(e, "preferences")}
               className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-200 shadow-md mt-auto"
             >
               Guardar Cambios
@@ -186,20 +270,60 @@ function UserProfile({ user, loading, error, onUpdateUser }) {
         </div>
       </div>
 
-      {/* Modal para añadir formato (placeholder) */}
+      {/* Modal para añadir formato CSL */}
       {showAddFormatModal && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex justify-center items-center z-50">
           <div className="bg-white p-8 rounded-lg shadow-xl w-full max-w-md">
             <h3 className="text-xl font-bold mb-4">Añadir Formato CSL</h3>
-            <p className="mb-4">
-              [Contenido de la modal: desplegable de CSL, botón Añadir]
-            </p>
-            <button
-              onClick={handleCloseAddFormatModal}
-              className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-200"
-            >
-              Cerrar
-            </button>
+            <div className="mb-4">
+              <label
+                htmlFor="csl-select"
+                className="block text-sm font-medium text-gray-700 mb-2"
+              >
+                Selecciona un estilo CSL:
+              </label>
+              {availableCslStyles.length > 0 ? (
+                <select
+                  id="csl-select"
+                  value={selectedCslStyle}
+                  onChange={(e) => setSelectedCslStyle(e.target.value)}
+                  className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                >
+                  {availableCslStyles.map((style) => (
+                    <option key={style.value} value={style.value}>
+                      {style.label}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <p className="text-gray-600">
+                  Cargando estilos o no hay estilos disponibles...
+                </p>
+              )}
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={handleCloseAddFormatModal}
+                className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition-colors duration-200"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleAddCslStyle}
+                disabled={
+                  !selectedCslStyle ||
+                  preferredCitationStyles.includes(selectedCslStyle)
+                } // Deshabilita si no hay selección o ya está añadido
+                className={`font-bold py-2 px-4 rounded-lg transition-colors duration-200 ${
+                  !selectedCslStyle ||
+                  preferredCitationStyles.includes(selectedCslStyle)
+                    ? "bg-blue-300 text-white cursor-not-allowed"
+                    : "bg-blue-500 hover:bg-blue-600 text-white"
+                }`}
+              >
+                Añadir
+              </button>
+            </div>
           </div>
         </div>
       )}
