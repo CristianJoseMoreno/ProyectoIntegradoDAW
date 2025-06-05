@@ -1,60 +1,55 @@
-import React, { useState, useRef, useEffect } from "react";
+// src/components/TextEditor.js
+import React, { useState, useRef } from "react";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
 import { Dialog, Transition } from "@headlessui/react";
-import mammoth from "mammoth"; // Asegúrate de que mammoth esté importado
+import mammoth from "mammoth";
 
-// Importa iconos. Ejemplo con Heroicons:
+// Importa iconos.
 import {
-  ArrowUpTrayIcon, // Para subir
-  ArrowDownTrayIcon, // Para bajar
-  FolderOpenIcon, // Para local
-  CloudArrowUpIcon, // Alternativa para Drive upload
-  CloudArrowDownIcon, // Alternativa para Drive download
-} from "@heroicons/react/24/outline"; // Asegúrate de que la ruta sea correcta según tu instalación
+  ArrowUpTrayIcon,
+  ArrowDownTrayIcon,
+  FolderOpenIcon,
+  CloudArrowUpIcon,
+  CloudArrowDownIcon,
+} from "@heroicons/react/24/outline";
 import { PlusIcon } from "@heroicons/react/24/outline";
-export default function TextEditor({
-  doc,
-  setDoc,
-  modalOpen,
-  setModalOpen,
-  metadata,
-  setMetadata,
-  selectedStyle,
-  setSelectedStyle,
-  styles,
-  handleGenerate,
-  googleAccessToken,
-}) {
-  // Nuevo estado para controlar el modal de selección de archivo
+
+// Importa el nuevo ReferenceFormModal
+import ReferenceFormModal from "./ReferenceFormModal";
+
+export default function TextEditor({ doc, setDoc, googleAccessToken }) {
+  // Estado para controlar el modal de selección de archivo (UPLOAD/DOWNLOAD)
   const [fileSelectionModalOpen, setFileSelectionModalOpen] = useState(false);
-  // Nuevo estado para saber si es una acción de 'upload' o 'download'
   const [currentAction, setCurrentAction] = useState(null); // 'upload' o 'download'
 
-  // Función auxiliar para convertir una cadena "binaria" a ArrayBuffer
+  // NUEVO ESTADO para controlar la visibilidad del modal de referencias
+  const [isReferenceModalOpen, setIsReferenceModalOpen] = useState(false);
+
+  // Ref para el editor de texto Quill para la inserción de texto
+  const quillRef = useRef(null);
+
+  // Función auxiliar para convertir una cadena "binaria" a ArrayBuffer (mantener la misma lógica que tenías)
   const stringToBytes = (str) => {
     const bytes = new Uint8Array(str.length);
     for (let i = 0; i < str.length; i++) {
-      bytes[i] = str.charCodeAt(i) & 0xff; // Asegura que solo se toma el byte bajo
+      bytes[i] = str.charCodeAt(i) & 0xff;
     }
-    return bytes.buffer; // Devuelve el ArrayBuffer subyacente
+    return bytes.buffer;
   };
   const fileInputRef = useRef(null);
 
   const openFileDialog = () => {
     fileInputRef.current?.click();
   };
-  // *** LÍNEA CORREGIDA: Esta línea fue eliminada de aquí, ya que 'file' no estaba definida en este scope.
-  // const ext = file.name.split(".").pop().toLowerCase();
 
   const handleFileChange = async (e) => {
     const file = e.target.files[0];
     if (!file) {
-      setFileSelectionModalOpen(false); // Cierra el modal si no se selecciona archivo
+      setFileSelectionModalOpen(false);
       return;
     }
 
-    // Aquí es donde 'ext' debe definirse, dentro del scope de la función handleFileChange
     const ext = file.name.split(".").pop().toLowerCase();
 
     if (ext === "txt") {
@@ -80,7 +75,6 @@ export default function TextEditor({
   };
 
   const handleSave = () => {
-    // 1. Obtener el nombre del archivo del usuario
     const fileName = prompt(
       "Introduce el nombre del archivo (sin extensión). Se guardará como .txt"
     );
@@ -90,33 +84,28 @@ export default function TextEditor({
       return;
     }
 
-    // 2. Convertir el contenido HTML de ReactQuill a texto plano
     const tempDiv = document.createElement("div");
-    tempDiv.innerHTML = doc; // Carga el HTML en un div temporal
-    const plainTextContent = tempDiv.textContent || tempDiv.innerText || ""; // Extrae solo el texto
+    tempDiv.innerHTML = doc;
+    const plainTextContent = tempDiv.textContent || tempDiv.innerText || "";
 
-    // 3. Crear un Blob con el contenido de texto plano
     const blob = new Blob([plainTextContent], {
       type: "text/plain;charset=utf-8",
     });
 
-    // 4. Crear un enlace de descarga y simular un clic
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = `${fileName}.txt`; // Asegura la extensión .txt
+    link.download = `${fileName}.txt`;
 
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
 
-    // 5. Mostrar la alerta de futuras versiones
     alert(
       `Documento "${fileName}.txt" guardado con éxito. En futuras versiones se aceptarán más formatos de guardado.`
     );
     setFileSelectionModalOpen(false);
   };
 
-  // 1. FUNCIÓN PARA ABRIR EL GOOGLE PICKER PARA TEXTOS (TXT/DOCX)
   const openGoogleDrivePicker = () => {
     if (!window.gapi || !window.gapi.client || !googleAccessToken) {
       alert(
@@ -126,22 +115,17 @@ export default function TextEditor({
       return;
     }
 
-    // *** NUEVO ALERT PARA INFORMAR AL USUARIO ***
     alert(
       "Para cargar archivos de Google Drive, el documento debe estar configurado como 'Visible para todos' (enlace)." +
         " En futuras versiones, mejoraremos esta funcionalidad."
     );
-
-    // Define los MIME types permitidos ANTES de usarlos
-    const allowedMimeTypes =
-      "text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/rtf,text/html";
 
     const view = new window.google.picker.DocsView();
 
     const picker = new window.google.picker.PickerBuilder()
       .addView(view)
       .setOAuthToken(googleAccessToken)
-      .setDeveloperKey(process.env.REACT_APP_GOOGLE_API_KEY) // Mantengo esta línea ya que la tenías, aunque la comentamos para depuración
+      .setDeveloperKey(process.env.REACT_APP_GOOGLE_API_KEY)
       .setAppId(process.env.REACT_APP_GOOGLE_APP_ID)
       .setCallback(pickerCallback)
       .build();
@@ -156,7 +140,6 @@ export default function TextEditor({
     picker.setVisible(true);
   };
 
-  // 2. CALLBACK DEL GOOGLE PICKER PARA TEXTOS
   const pickerCallback = async (data) => {
     if (data.action === window.google.picker.Action.PICKED) {
       const doc = data.docs[0];
@@ -165,46 +148,42 @@ export default function TextEditor({
       const mimeType = doc.mimeType;
       try {
         await downloadFileFromDrive(fileId, fileName, mimeType);
-        alert(`Archivo "${fileName}" cargado desde Google Drive.`); // Solo si la descarga fue exitosa
+        alert(`Archivo "${fileName}" cargado desde Google Drive.`);
       } catch (error) {
         console.error("Error en pickerCallback al descargar archivo:", error);
-        // Muestra un mensaje más útil desde el error
         alert(
           `Error al cargar el archivo "${fileName}": ${
             error.message || "Error desconocido"
           }. Asegúrate de tener permisos.`
         );
       } finally {
-        setFileSelectionModalOpen(false); // <<-- AÑADIDO AQUÍ para cerrar el modal después de que todo haya terminado (éxito o error)
+        setFileSelectionModalOpen(false);
       }
     } else if (data.action === window.google.picker.Action.CANCEL) {
-      setFileSelectionModalOpen(false); // <<-- AÑADIDO AQUÍ si el usuario cancela la selección en Drive
+      setFileSelectionModalOpen(false);
     }
   };
 
-  // 3. FUNCIÓN PARA DESCARGAR EL ARCHIVO DE GOOGLE DRIVE Y CARGARLO EN EL EDITOR
   const downloadFileFromDrive = async (fileId, fileName, mimeType) => {
     let response;
     let fileContent;
 
     try {
-      // Validación para .doc (Word 97-2003) - la mantendremos si no quieres soportarlos directamente
       if (mimeType === "application/msword") {
         throw new Error(
           "Los archivos .doc (Word 97-2003) no son directamente compatibles. Por favor, conviértelos a .docx o Google Doc."
         );
       }
 
-      // Para archivos nativos de Google (Google Docs, Sheets, Slides)
       if (
-        mimeType === "application/vnd.google-apps.document" || // Google Docs
-        mimeType === "application/vnd.google-apps.html" || // Google Sites HTML
-        mimeType === "application/vnd.google-apps.drawing" // Google Drawing
+        mimeType === "application/vnd.google-apps.document" ||
+        mimeType === "application/vnd.google-apps.html" ||
+        mimeType === "application/vnd.google-apps.drawing"
       ) {
         let exportMimeType = "";
         if (mimeType === "application/vnd.google-apps.document") {
           exportMimeType =
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"; // Exportar como DOCX
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
         } else if (mimeType === "application/vnd.google-apps.html") {
           exportMimeType = "text/html";
         } else {
@@ -223,9 +202,8 @@ export default function TextEditor({
         );
 
         fileContent = response.body || response.result;
-        mimeType = exportMimeType; // Actualiza el mimeType para que la lógica de carga funcione
+        mimeType = exportMimeType;
       } else {
-        // Para archivos no nativos (TXT, DOCX subidos, PDF, etc.) usamos drive.files.get con alt: "media"
         try {
           response = await window.gapi.client.drive.files.get(
             {
@@ -233,7 +211,7 @@ export default function TextEditor({
               alt: "media",
             },
             {
-              responseType: "arraybuffer", // Esto es crucial para obtener ArrayBuffer
+              responseType: "arraybuffer",
             }
           );
           fileContent = response.body || response.result;
@@ -250,21 +228,14 @@ export default function TextEditor({
       }
 
       if (response.status === 200) {
-        // Lógica unificada para asegurar que fileContent es un ArrayBuffer para mammoth o texto para setDoc
-
         let processedFileContent = fileContent;
 
-        // Si el contenido es una cadena (posiblemente de exportación de Google Docs)
         if (
           typeof fileContent === "string" &&
           !["text/plain", "text/html", "application/rtf"].includes(mimeType)
         ) {
-          // Asumiendo que esta cadena es la representación binaria del archivo
           processedFileContent = stringToBytes(fileContent);
         }
-
-        // Ahora processedFileContent debería ser un ArrayBuffer (o ya lo era)
-        // O si es texto plano, no necesita conversión de ArrayBuffer para setDoc directamente
 
         if (
           mimeType === "text/plain" ||
@@ -276,23 +247,20 @@ export default function TextEditor({
             const textDecoder = new TextDecoder("utf-8");
             textData = textDecoder.decode(processedFileContent);
           } else {
-            // Esto es si ya es una cadena legible (ej. de drive.files.export de HTML)
-            textData = fileContent; // Usar el original fileContent ya que es string legible
+            textData = fileContent;
           }
           setDoc(textData);
         } else if (
           mimeType ===
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         ) {
-          // Aquí esperamos un ArrayBuffer
           if (!(processedFileContent instanceof ArrayBuffer)) {
-            // Si por alguna razón sigue sin ser ArrayBuffer, lanzamos el error
             throw new Error(
               "Contenido de DOCX no es un ArrayBuffer válido después de procesamiento."
             );
           }
           const result = await mammoth.convertToHtml({
-            arrayBuffer: processedFileContent, // Usar el ArrayBuffer procesado
+            arrayBuffer: processedFileContent,
           });
 
           setDoc(result.value);
@@ -311,9 +279,7 @@ export default function TextEditor({
     }
   };
 
-  // 4. FUNCIÓN PARA SUBIR EL CONTENIDO DEL EDITOR A GOOGLE DRIVE
   const handleSaveToDrive = async () => {
-    // Verificación de carga de la API de Google y del token
     if (
       !window.gapi ||
       !window.gapi.client ||
@@ -327,7 +293,6 @@ export default function TextEditor({
       return;
     }
 
-    // AVISO CLARO: SOLO SE GUARDARÁ EN TXT POR AHORA
     alert(
       "Actualmente, solo se puede guardar como texto plano (.txt) en Google Drive para asegurar la compatibilidad. " +
         "En futuras versiones, se aceptarán más formatos."
@@ -344,13 +309,11 @@ export default function TextEditor({
       return;
     }
 
-    let mimeType = "text/plain"; // Forzamos siempre a TXT
-    // Convertimos el contenido del editor a texto plano
+    let mimeType = "text/plain";
     const tempDiv = document.createElement("div");
     tempDiv.innerHTML = doc;
     const fileContentToSend = tempDiv.textContent || tempDiv.innerText || "";
 
-    // Aseguramos que el nombre de archivo termine en .txt
     const finalFileName = fileName.toLowerCase().endsWith(".txt")
       ? fileName
       : `${fileName}.txt`;
@@ -393,9 +356,10 @@ export default function TextEditor({
       }
       alert(`Error al subir el archivo a Google Drive: ${errorMessage}.`);
     } finally {
-      setFileSelectionModalOpen(false); // <<-- AÑADIDO/CONFIRMADO AQUÍ, usando finally para asegurar que siempre se cierre.
+      setFileSelectionModalOpen(false);
     }
   };
+
   const handleActionSelection = (source) => {
     if (currentAction === "upload") {
       if (source === "local") {
@@ -411,13 +375,26 @@ export default function TextEditor({
       }
     }
   };
+
+  // Función para insertar texto formateado en ReactQuill
+  // Esta es la función que se pasará a ReferenceFormModal
+  const handleInsertFormattedText = (formattedHtml) => {
+    if (quillRef.current) {
+      const quill = quillRef.current.getEditor();
+      const selection = quill.getSelection();
+      let index = selection ? selection.index : quill.getLength(); // Insertar en la posición del cursor o al final
+
+      quill.clipboard.dangerouslyPasteHTML(index, formattedHtml);
+      quill.setSelection(index + formattedHtml.length); // Mover el cursor al final del texto insertado
+      setDoc(quill.root.innerHTML); // Actualizar el estado `doc` con el nuevo contenido HTML
+    }
+  };
+
   return (
     <div className="w-1/2 relative bg-white rounded-2xl shadow-lg flex flex-col overflow-hidden">
       <div className="flex justify-between items-center gap-3 p-4">
         <h2 className="text-lg font-medium">Editor de Texto</h2>
-        {/* NUEVA DISPOSICIÓN: Agrupar todos los botones relevantes del editor */}
         <div className="flex gap-3">
-          {/* Botones de Cargar y Guardar */}
           <button
             onClick={() => {
               setCurrentAction("upload");
@@ -440,9 +417,9 @@ export default function TextEditor({
             <span>Guardar</span>
           </button>
 
-          {/* Botón de Insertar referencia (AHORA AL LADO) */}
+          {/* Botón para abrir el nuevo modal de referencias */}
           <button
-            onClick={() => setModalOpen(true)}
+            onClick={() => setIsReferenceModalOpen(true)}
             className="flex items-center space-x-2 px-4 py-2 border border-indigo-600 text-indigo-600 rounded-lg hover:bg-indigo-50 transition"
           >
             <PlusIcon className="h-5 w-5" />
@@ -461,6 +438,7 @@ export default function TextEditor({
 
       <div className="flex-1 overflow-auto">
         <ReactQuill
+          ref={quillRef}
           value={doc}
           onChange={setDoc}
           theme="snow"
@@ -468,7 +446,7 @@ export default function TextEditor({
         />
       </div>
 
-      {/* MODAL PARA SELECCIÓN DE ORIGEN/DESTINO DE ARCHIVOS */}
+      {/* MODAL PARA SELECCIÓN DE ORIGEN/DESTINO DE ARCHIVOS (sin cambios) */}
       <Transition appear show={fileSelectionModalOpen} as={React.Fragment}>
         <Dialog
           as="div"
@@ -508,17 +486,14 @@ export default function TextEditor({
                       : "Guardar archivo en..."}
                   </Dialog.Title>
                   <div className="mt-4 space-y-4">
-                    {/* Opción Local */}
                     <button
                       onClick={() => handleActionSelection("local")}
                       className="w-full flex items-center justify-center space-x-3 px-4 py-3 border border-gray-300 rounded-lg text-gray-800 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 transition"
                     >
                       <FolderOpenIcon className="h-6 w-6 text-indigo-600" />
-                      {/* <FaFolderOpen className="h-6 w-6 text-indigo-600" />  -- Si usas react-icons */}
                       <span className="text-lg">Mi dispositivo</span>
                     </button>
 
-                    {/* Opción Google Drive */}
                     <button
                       onClick={() => handleActionSelection("drive")}
                       disabled={!googleAccessToken}
@@ -533,13 +508,11 @@ export default function TextEditor({
                           : ""
                       }
                     >
-                      {/* Puedes usar una SVG de Google Drive si la tienes, o Heroicons/React Icons genéricos */}
                       {currentAction === "upload" ? (
                         <CloudArrowUpIcon className="h-6 w-6 text-indigo-600" />
                       ) : (
                         <CloudArrowDownIcon className="h-6 w-6 text-indigo-600" />
                       )}
-                      {/* <FaGoogleDrive className="h-6 w-6 text-indigo-600" /> -- Si usas react-icons */}
                       <span className="text-lg">Google Drive</span>
                     </button>
                   </div>
@@ -560,108 +533,16 @@ export default function TextEditor({
         </Dialog>
       </Transition>
 
-      {/* Modal original de "Nueva referencia" */}
-      <Dialog
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
-      >
-        <Dialog.Panel className="bg-white p-6 rounded-2xl shadow-xl w-full max-w-md">
-          <Dialog.Title className="text-xl font-semibold mb-4">
-            Nueva referencia
-          </Dialog.Title>
-          <div className="space-y-3 h-80 overflow-auto">
-            <input
-              type="text"
-              placeholder="Autor1,Nombre;Autor2,Nombre"
-              value={metadata.author}
-              onChange={(e) =>
-                setMetadata((m) => ({ ...m, author: e.target.value }))
-              }
-              className="w-full border p-2 rounded-lg"
-            />
-            <input
-              type="text"
-              placeholder="Título"
-              value={metadata.title}
-              onChange={(e) =>
-                setMetadata((m) => ({ ...m, title: e.target.value }))
-              }
-              className="w-full border p-2 rounded-lg"
-            />
-            <input
-              type="number"
-              placeholder="Año"
-              value={metadata.year}
-              onChange={(e) =>
-                setMetadata((m) => ({ ...m, year: e.target.value }))
-              }
-              className="w-full border p-2 rounded-lg"
-            />
-            <input
-              type="text"
-              placeholder="Libro o revista"
-              value={metadata.containerTitle}
-              onChange={(e) =>
-                setMetadata((m) => ({ ...m, containerTitle: e.target.value }))
-              }
-              className="w-full border p-2 rounded-lg"
-            />
-            <input
-              type="text"
-              placeholder="Páginas (p. x–y)"
-              value={metadata.pages}
-              onChange={(e) =>
-                setMetadata((m) => ({ ...m, pages: e.target.value }))
-              }
-              className="w-full border p-2 rounded-lg"
-            />
-            <input
-              type="text"
-              placeholder="Editorial"
-              value={metadata.publisher}
-              onChange={(e) =>
-                setMetadata((m) => ({ ...m, publisher: e.target.value }))
-              }
-              className="w-full border p-2 rounded-lg"
-            />
-            <input
-              type="url"
-              placeholder="URL"
-              value={metadata.URL}
-              onChange={(e) =>
-                setMetadata((m) => ({ ...m, URL: e.target.value }))
-              }
-              className="w-full border p-2 rounded-lg"
-            />
-            <select
-              value={selectedStyle}
-              onChange={(e) => setSelectedStyle(e.target.value)}
-              className="w-full border p-2 rounded-lg"
-            >
-              {styles.map((style) => (
-                <option key={style.value} value={style.value}>
-                  {style.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="mt-6 flex justify-end gap-3">
-            <button
-              onClick={() => setModalOpen(false)}
-              className="px-4 py-2 bg-gray-300 rounded-lg hover:bg-gray-400"
-            >
-              Cancelar
-            </button>
-            <button
-              onClick={handleGenerate}
-              className="px-4 py-2 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800"
-            >
-              Insertar
-            </button>
-          </div>
-        </Dialog.Panel>
-      </Dialog>
+      {/* Nuevo componente ReferenceFormModal */}
+      <ReferenceFormModal
+        isOpen={isReferenceModalOpen}
+        onClose={() => setIsReferenceModalOpen(false)}
+        onSaveSuccess={() => {
+          /* Puedes añadir un toast o alert aquí si quieres */
+        }}
+        forTextEditor={true} // Muy importante: indica que es para el editor de texto
+        onInsertFormattedText={handleInsertFormattedText} // Callback para insertar el texto
+      />
     </div>
   );
 }

@@ -1,8 +1,8 @@
 // src/sections/ReferencesListSection.js
 import React, { useState, useEffect } from "react";
 import ReferenceCard from "../components/ReferenceCard";
-import ReferenceFormModal from "../components/ReferenceFormModal";
-import { faThLarge, faList } from "@fortawesome/free-solid-svg-icons";
+import ReferenceFormModal from "../components/ReferenceFormModal"; // Asegúrate de que esta ruta sea correcta
+import { faThLarge, faList } from "@fortawesome/free-solid-svg-icons"; // Estos iconos parecen no usarse en el JSX, pero los mantengo
 
 function ReferencesListSection() {
   const [references, setReferences] = useState([]); // Estado para las referencias reales del backend
@@ -28,7 +28,8 @@ function ReferencesListSection() {
         throw new Error("No autenticado. Por favor, inicia sesión.");
       }
 
-      const response = await fetch("/api/references", {
+      const response = await fetch("http://localhost:5000/api/references", {
+        // Asegúrate de que la URL sea absoluta si estás usando un proxy en desarrollo o ajusta según tu configuración
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -51,54 +52,8 @@ function ReferencesListSection() {
     }
   };
 
-  const handleSaveReference = async (formData) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const token = getToken();
-      if (!token) {
-        throw new Error("No autenticado. Por favor, inicia sesión.");
-      }
-
-      let response;
-      if (referenceToEdit) {
-        // Lógica para ACTUALIZAR una referencia existente
-        response = await fetch(`/api/references/${referenceToEdit._id}`, {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(formData), // Envía los datos del formulario
-        });
-      } else {
-        // Lógica para CREAR una nueva referencia
-        response = await fetch("/api/references", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(formData), // Envía los datos del formulario
-        });
-      }
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Error al guardar la referencia.");
-      }
-
-      // Después de guardar/actualizar, vuelve a cargar las referencias para tener la lista actualizada
-      await fetchReferences();
-      closeModal(); // Cierra la modal
-    } catch (err) {
-      console.error("Error al guardar referencia:", err);
-      setError(err.message);
-      alert(`Error al guardar la referencia: ${err.message}`); // Notificar al usuario
-    } finally {
-      setLoading(false);
-    }
-  };
+  // handleSaveReference se elimina de aquí. La lógica de guardar/actualizar ahora está en ReferenceFormModal.
+  // La función fetchReferences se llamará en onSaveSuccess del modal.
 
   const handleDeleteReference = async (id) => {
     if (
@@ -116,12 +71,16 @@ function ReferencesListSection() {
         throw new Error("No autenticado. Por favor, inicia sesión.");
       }
 
-      const response = await fetch(`/api/references/${id}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const response = await fetch(
+        `http://localhost:5000/api/references/${id}`,
+        {
+          // Asegúrate de que la URL sea absoluta
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -143,10 +102,11 @@ function ReferencesListSection() {
   };
 
   // Funciones para controlar la modal
-  const openAddModal = () => {
-    setReferenceToEdit(null); // Asegura que el formulario es para una nueva referencia
-    setIsModalOpen(true);
-  };
+  // openAddModal se elimina porque ya no se añade desde aquí.
+  // const openAddModal = () => {
+  //   setReferenceToEdit(null);
+  //   setIsModalOpen(true);
+  // };
 
   const openEditModal = (reference) => {
     setReferenceToEdit(reference); // Pasa la referencia a editar a la modal
@@ -158,6 +118,13 @@ function ReferencesListSection() {
     setReferenceToEdit(null); // Limpia la referencia al cerrar la modal
   };
 
+  // Callback para el ReferenceFormModal cuando el guardado es exitoso
+  const handleReferenceSaveSuccess = () => {
+    fetchReferences(); // Refresca la lista de referencias
+    // No es necesario un alert aquí, ReferenceFormModal ya maneja sus propios estados
+    // de carga/error y onSaveSuccess es un callback de éxito silencioso.
+  };
+
   return (
     <section className="flex flex-col h-full bg-white rounded-3xl p-6 md:p-8 shadow-lg overflow-hidden bg-gray-100">
       {/* Encabezado de la sección de referencias */}
@@ -167,14 +134,17 @@ function ReferencesListSection() {
         </h2>
 
         {/* Acciones de vista y botón Añadir */}
+        {/* El botón "Añadir Referencia" se ha eliminado de aquí */}
+        {/*
         <div className="flex items-center space-x-2 flex-shrink-0">
           <button
-            onClick={openAddModal} // Botón para añadir nueva referencia
+            onClick={openAddModal}
             className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-colors duration-200 text-sm md:text-base"
           >
             Añadir Referencia
           </button>
         </div>
+        */}
       </div>
 
       {loading && (
@@ -190,7 +160,7 @@ function ReferencesListSection() {
 
       {!loading && !error && references.length === 0 && (
         <p className="text-center text-gray-600 mt-4 dark:text-gray-300">
-          No tienes referencias guardadas. ¡Añade una!
+          No tienes referencias guardadas.
         </p>
       )}
 
@@ -214,8 +184,9 @@ function ReferencesListSection() {
       <ReferenceFormModal
         isOpen={isModalOpen}
         onClose={closeModal}
-        onSave={handleSaveReference}
+        onSaveSuccess={handleReferenceSaveSuccess} // Nuevo callback de éxito
         referenceToEdit={referenceToEdit}
+        forTextEditor={false} // Muy importante: indica que NO es para el editor de texto
       />
     </section>
   );

@@ -71,8 +71,6 @@ function ReferenceCard({ reference, onEdit, onDelete }) {
           </p>
         </div>
 
-        {/* Contenedor del Año y Enlace de Recurso (en la misma línea que los botones de acción) */}
-        {/* Este div no tendrá los botones, solo el año y el enlace para mantener la separación lógica */}
         <div className="flex justify-between items-center mt-2">
           {" "}
           {/* mt-2 para separación con info superior */}
