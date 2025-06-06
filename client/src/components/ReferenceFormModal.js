@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import { Dialog } from "@headlessui/react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faSpinner } from "@fortawesome/free-solid-svg-icons";
+import toast from "react-hot-toast";
 
 /**
  * Mapeo básico de IDs de estilo a nombres legibles.
@@ -17,9 +18,6 @@ const CSL_STYLE_MAP = {
   ieee: "IEEE (Institute of Electrical and Electronics Engineers)",
   // Añade más estilos aquí según los que tu backend reconozca y los usuarios configuren
 };
-
-// parsePreferredStyles ya no es necesaria si el backend envía un array directamente.
-// La lógica de mapeo se integra directamente en fetchFavoriteStyles.
 
 /**
  * Modal reutilizable para añadir o editar referencias.
@@ -163,15 +161,13 @@ function ReferenceFormModal({
         );
       }
 
-      // CAMBIAR LA URL A TU ENDPOINT DE USUARIO QUE DEVUELVE LOS ESTILOS PREFERIDOS
-      // Ahora usa /api/users/me como se confirmó
       const response = await fetch("http://localhost:5000/api/users/me", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
 
-      const responseText = await response.text(); // LEER LA RESPUESTA COMO TEXTO PRIMERO PARA DEPURAR
+      const responseText = await response.text();
 
       if (!response.ok) {
         let errorMsg = "Error al cargar los formatos favoritos. ";
@@ -179,7 +175,6 @@ function ReferenceFormModal({
           const errorData = JSON.parse(responseText);
           errorMsg += errorData.message || "Detalles desconocidos.";
         } catch (e) {
-          // Si no es JSON, mostrar la respuesta cruda para depuración
           errorMsg += `Respuesta no JSON (status ${
             response.status
           }): ${responseText.substring(0, 200)}...`;
@@ -187,16 +182,13 @@ function ReferenceFormModal({
         throw new Error(errorMsg);
       }
 
-      const data = JSON.parse(responseText); // Intentar parsear a JSON
+      const data = JSON.parse(responseText);
 
-      // Aquí es la CLAVE: preferredCitationStyles es un ARRAY de STRINGS
-      // Lo esperamos como data.user.preferredCitationStyles o data.preferredCitationStyles
       const rawStylesArray =
         data.user?.preferredCitationStyles ||
         data.preferredCitationStyles ||
         [];
 
-      // Asegurarse de que sea un array
       if (!Array.isArray(rawStylesArray)) {
         console.warn(
           "preferredCitationStyles no es un array en la respuesta de /api/users/me. Esperado: array de strings.",
@@ -207,16 +199,13 @@ function ReferenceFormModal({
         );
       }
 
-      // Mapear el array de IDs de estilo a objetos { value, label }
       const stylesData = rawStylesArray.map((id) => ({
         value: id,
-        label: CSL_STYLE_MAP[id.toLowerCase()] || id.toUpperCase(), // Usar el mapa o el ID en mayúsculas
+        label: CSL_STYLE_MAP[id.toLowerCase()] || id.toUpperCase(),
       }));
 
       setFavoriteStyles(stylesData);
-      // La lógica para establecer selectedStyle por defecto está ahora en un useEffect separado
     } catch (err) {
-      // FIN del try de fetchFavoriteStyles
       console.error("Error fetching favorite styles:", err);
       setError(err.message);
     } finally {
@@ -236,7 +225,7 @@ function ReferenceFormModal({
           given: parts[1] ? parts[1].trim() : "",
         };
       })
-      .filter((a) => a.family || a.given); // Eliminar objetos de autor vacíos
+      .filter((a) => a.family || a.given);
   };
 
   // Helper para construir el objeto CSL-JSON
@@ -245,8 +234,9 @@ function ReferenceFormModal({
       type: metadata.type,
       title: metadata.title,
       author: parseAuthors(metadata.author),
+      // Asegurarse de que 'year' es un número antes de pasarlo a date-parts
       issued: metadata.year
-        ? { "date-parts": [[parseInt(metadata.year)]] }
+        ? { "date-parts": [[parseInt(metadata.year, 10)]] }
         : undefined,
       "container-title": metadata.containerTitle,
       page: metadata.pages,
@@ -276,7 +266,6 @@ function ReferenceFormModal({
       }
 
       const res = await fetch("http://localhost:5000/api/citation/format", {
-        // URL de tu backend
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -285,11 +274,11 @@ function ReferenceFormModal({
         body: JSON.stringify({
           metadata: cslJson,
           style: selectedStyle,
-          output: "html", // Siempre pedir HTML para previsualización/inserción
+          output: "html",
         }),
       });
 
-      const responseText = await res.text(); // Leer como texto para depuración
+      const responseText = await res.text();
 
       if (!res.ok) {
         let errorMsg = "Error al formatear la cita para previsualización. ";
@@ -304,7 +293,7 @@ function ReferenceFormModal({
         throw new Error(errorMsg);
       }
 
-      const data = JSON.parse(responseText); // Ahora intentar parsear JSON
+      const data = JSON.parse(responseText);
       if (!data.citationHtml) {
         throw new Error("El backend no devolvió citationHtml.");
       }
@@ -337,7 +326,7 @@ function ReferenceFormModal({
       citationData: cslJson,
       url: metadata.URL,
       notes: metadata.notes,
-      formattingStyle: selectedStyle, // Guardar el estilo seleccionado con la referencia
+      formattingStyle: selectedStyle,
     };
 
     try {
@@ -350,7 +339,7 @@ function ReferenceFormModal({
       let saveResponse;
       const saveUrl = referenceToEdit
         ? `http://localhost:5000/api/references/${referenceToEdit._id}`
-        : "http://localhost:5000/api/references"; // URL de tu backend
+        : "http://localhost:5000/api/references";
       const saveMethod = referenceToEdit ? "PUT" : "POST";
 
       saveResponse = await fetch(saveUrl, {
@@ -375,7 +364,6 @@ function ReferenceFormModal({
         const formatRes = await fetch(
           "http://localhost:5000/api/citation/format",
           {
-            // URL de tu backend
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -389,7 +377,7 @@ function ReferenceFormModal({
           }
         );
 
-        const formatTextResponse = await formatRes.text(); // Leer como texto para depuración
+        const formatTextResponse = await formatRes.text();
         if (!formatRes.ok) {
           let errorMsg = "Error al formatear la referencia para inserción. ";
           try {
@@ -410,13 +398,24 @@ function ReferenceFormModal({
           );
 
         onInsertFormattedText(formatData.citationHtml);
+        toast.success(
+          `Referencia ${
+            referenceToEdit ? "actualizada" : "creada"
+          } e insertada en el editor.`
+        );
+      } else {
+        // Toast para cuando solo se guarda (no se inserta en el editor)
+        toast.success(
+          `Referencia ${referenceToEdit ? "actualizada" : "creada"} con éxito.`
+        );
       }
 
-      onSaveSuccess(); // Notificar al padre que el guardado fue exitoso (ej. para refrescar la lista)
+      onSaveSuccess();
       onClose(); // Cerrar el modal
     } catch (err) {
       console.error("Error en handleSaveAndFormat:", err);
-      setError(err.message);
+      setError(err.message); // Asegúrate de que el error se establezca para mostrarlo si es necesario
+      toast.error(`Error al guardar referencia: ${err.message}`);
     } finally {
       setIsSaving(false);
     }
@@ -424,7 +423,20 @@ function ReferenceFormModal({
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setMetadata((prev) => ({ ...prev, [name]: value }));
+
+    if (name === "year") {
+      // Permitir solo dígitos (0-9). Elimina cualquier otra cosa.
+      const filteredValue = value.replace(/[^0-9]/g, "");
+      setMetadata((prev) => ({ ...prev, [name]: filteredValue }));
+    } else if (name === "pages") {
+      // Permitir dígitos (0-9), guiones (-), comas (,), puntos (.), espacios ( ), y las letras 'p'/'P'.
+      // Elimina cualquier otro carácter.
+      const filteredValue = value.replace(/[^0-9pP\-,.\s]/g, "");
+      setMetadata((prev) => ({ ...prev, [name]: filteredValue }));
+    } else {
+      // Para todos los demás campos, simplemente actualiza el valor.
+      setMetadata((prev) => ({ ...prev, [name]: value }));
+    }
   };
 
   return (
@@ -442,8 +454,8 @@ function ReferenceFormModal({
 
         <div className="space-y-3">
           <input
-            type="text"
-            name="author" // Añadir name
+            type="text" // Cambiado a type="text" para control manual de la entrada
+            name="author"
             placeholder="Autor(es): Apellido,Nombre;Apellido2,Nombre2"
             value={metadata.author}
             onChange={handleChange}
@@ -451,31 +463,31 @@ function ReferenceFormModal({
           />
           <input
             type="text"
-            name="title" // Añadir name
+            name="title"
             placeholder="Título"
             value={metadata.title}
             onChange={handleChange}
             className="w-full border p-2 rounded-lg focus:ring-blue-500 focus:border-blue-500"
           />
           <input
-            type="number"
-            name="year" // Añadir name
-            placeholder="Año"
+            type="text" // Cambiado a type="text" para control manual de la entrada
+            name="year"
+            placeholder="Año (solo números)"
             value={metadata.year}
             onChange={handleChange}
             className="w-full border p-2 rounded-lg focus:ring-blue-500 focus:border-blue-500"
           />
           <input
             type="text"
-            name="containerTitle" // Añadir name
+            name="containerTitle"
             placeholder="Libro o revista (Título del contenedor)"
             value={metadata.containerTitle}
             onChange={handleChange}
             className="w-full border p-2 rounded-lg focus:ring-blue-500 focus:border-blue-500"
           />
           <input
-            type="text"
-            name="pages" // Añadir name
+            type="text" // Cambiado a type="text" para control manual de la entrada (permite -, p, etc.)
+            name="pages"
             placeholder="Páginas (ej. 123-145 o p. x–y)"
             value={metadata.pages}
             onChange={handleChange}
@@ -483,7 +495,7 @@ function ReferenceFormModal({
           />
           <input
             type="text"
-            name="publisher" // Añadir name
+            name="publisher"
             placeholder="Editorial"
             value={metadata.publisher}
             onChange={handleChange}
@@ -491,7 +503,7 @@ function ReferenceFormModal({
           />
           <input
             type="url"
-            name="URL" // Añadir name
+            name="URL"
             placeholder="URL"
             value={metadata.URL}
             onChange={handleChange}
@@ -499,7 +511,7 @@ function ReferenceFormModal({
           />
           <textarea
             placeholder="Notas o descripción adicional"
-            name="notes" // Añadir name
+            name="notes"
             value={metadata.notes}
             onChange={handleChange}
             rows="3"
@@ -516,7 +528,7 @@ function ReferenceFormModal({
             </label>
             <select
               id="type-select"
-              name="type" // Añadir name
+              name="type"
               value={metadata.type}
               onChange={handleChange}
               className="w-full border p-2 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-white"

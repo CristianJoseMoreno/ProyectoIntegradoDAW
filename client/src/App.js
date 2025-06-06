@@ -6,6 +6,7 @@ import Landing from "./pages/Landing";
 import Research from "./pages/Research";
 import PrivateRoute from "./components/PrivateRoute";
 import References from "./pages/References";
+import { Toaster } from "react-hot-toast";
 
 function App() {
   const navigate = useNavigate();
@@ -126,7 +127,7 @@ function App() {
             },
             onerror: (err) => {
               console.error("Error al cargar Google Picker API:", err);
-              alert("No se pudo cargar la API de Google Picker.");
+              toast.error("No se pudo cargar la API de Google Picker.");
               setAreGoogleApisReady(false); // Marcar como no listas en caso de error
             },
           });
@@ -220,6 +221,30 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
+      <Toaster
+        position="top-center" // Centrado en la parte superior
+        toastOptions={{
+          className: "bg-gray-100 text-gray-900 rounded-lg shadow-lg", // Fondo gris 100 y estilos generales
+          style: {
+            padding: "16px",
+            color: "#333", // Color del texto general del toast
+            minWidth: "300px",
+          },
+          success: {
+            iconTheme: {
+              primary: "#4F46E5", // Color primario índigo para el icono de éxito
+              secondary: "#fff",
+            },
+          },
+          error: {
+            iconTheme: {
+              primary: "#EF4444", // Color rojo para el icono de error
+              secondary: "#fff",
+            },
+          },
+          // Puedes añadir estilos para `loading` o `custom` si los usas
+        }}
+      />
       <Navbar
         user={user}
         handleLogout={handleLogout}

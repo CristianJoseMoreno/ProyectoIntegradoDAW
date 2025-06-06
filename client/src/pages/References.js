@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import AppSidebar from "../components/AppSidebar";
 import ReferencesListSection from "../components/ReferencesListSection";
 import UserProfile from "../components/UserProfile";
+import toast from "react-hot-toast";
 
 // Recibe el 'user' como prop de App.js (tal como lo corregimos en App.js)
 export default function References({ user }) {
@@ -88,12 +89,11 @@ export default function References({ user }) {
       }
 
       const data = await res.json();
-      setUserData(data.user); // Actualiza el estado con los datos del usuario devueltos por el backend
-      // Usar un toast o un modal en lugar de alert() en una app real
-      alert("Perfil actualizado con éxito!");
+      setUserData(data.user);
+      toast.success("Perfil actualizado con éxito!");
     } catch (error) {
       console.error("Error updating user profile:", error);
-      alert("Error al actualizar el perfil: " + error.message);
+      toast.error("Error al actualizar el perfil: " + error.message);
     }
   };
 

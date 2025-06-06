@@ -8,6 +8,7 @@ import {
   CloudArrowUpIcon,
   CloudArrowDownIcon,
 } from "@heroicons/react/24/outline";
+import toast from "react-hot-toast";
 
 export default function PdfViewer({
   pdfs,
@@ -31,7 +32,7 @@ export default function PdfViewer({
     (e) => {
       const file = e.target.files[0];
       if (!file || file.type !== "application/pdf") {
-        alert("Por favor selecciona un archivo PDF válido.");
+        toast.error("Por favor selecciona un archivo PDF válido.");
         e.target.value = null;
         setFileSelectionModalOpen(false);
         return;
@@ -41,7 +42,7 @@ export default function PdfViewer({
       const fileName = file.name;
       addPdf({ url: fileUrl, name: fileName, googleDriveFileId: null }); // PDFs locales no tienen googleDriveFileId
       e.target.value = null;
-      alert(`PDF "${fileName}" cargado desde Mi dispositivo.`);
+      toast.success(`PDF "${fileName}" cargado desde Mi dispositivo.`);
       setFileSelectionModalOpen(false);
     },
     [addPdf]
@@ -71,7 +72,7 @@ export default function PdfViewer({
         const mimeType = doc.mimeType;
 
         if (mimeType !== "application/pdf") {
-          alert(
+          toast.error(
             `El archivo "${fileName}" (Tipo: ${mimeType}) no es un PDF. Por favor, selecciona un archivo PDF.`
           );
           setFileSelectionModalOpen(false);
@@ -86,13 +87,15 @@ export default function PdfViewer({
             fileName
           );
           await downloadPdfFromDriveAndAddToState(fileId, fileName);
-          alert(`PDF "${fileName}" cargado desde Google Drive.`);
+          toast.success(`PDF "${fileName}" cargado desde Google Drive.`);
         } catch (error) {
           console.error(
             "Error (PdfViewer): Error en pickerCallback al descargar PDF:",
             error
           );
-          alert(`Error al cargar el PDF "${fileName}": ${error.message}.`);
+          toast.error(
+            `Error al cargar el PDF "${fileName}": ${error.message}.`
+          );
         } finally {
           setFileSelectionModalOpen(false);
         }
@@ -110,7 +113,7 @@ export default function PdfViewer({
       !googleAccessToken ||
       !areGoogleApisReady
     ) {
-      alert(
+      toast.error(
         "Google Drive API no cargada o no autenticada. Intenta recargar la página."
       );
       setFileSelectionModalOpen(false);
@@ -130,7 +133,7 @@ export default function PdfViewer({
       console.error(
         "Google Picker no está disponible. Asegúrate de que las APIs se cargaron correctamente."
       );
-      alert(
+      toast.error(
         "El servicio de selección de archivos de Google no está listo. Intenta recargar la página."
       );
       setFileSelectionModalOpen(false);
@@ -141,14 +144,14 @@ export default function PdfViewer({
 
   const handleSavePdfLocal = useCallback(async () => {
     if (!activePdfUrl) {
-      alert("No hay un PDF activo para guardar.");
+      toast.error("No hay un PDF activo para guardar.");
       setFileSelectionModalOpen(false);
       return;
     }
 
     const activePdf = pdfs.find((pdf) => pdf.url === activePdfUrl);
     if (!activePdf) {
-      alert("No se encontró el PDF activo para guardar.");
+      toast.error("No se encontró el PDF activo para guardar.");
       setFileSelectionModalOpen(false);
       return;
     }
@@ -160,7 +163,7 @@ export default function PdfViewer({
         : activePdf.name
     );
     if (!fileName) {
-      alert("Operación de guardar cancelada.");
+      toast.error("Operación de guardar cancelada.");
       setFileSelectionModalOpen(false);
       return;
     }
@@ -177,10 +180,12 @@ export default function PdfViewer({
       link.click();
       document.body.removeChild(link);
 
-      alert(`PDF "${fileName}.pdf" guardado con éxito en su dispositivo.`);
+      toast.success(
+        `PDF "${fileName}.pdf" guardado con éxito en su dispositivo.`
+      );
     } catch (error) {
       console.error("Error al guardar PDF localmente:", error);
-      alert(
+      toast.error(
         `Error al guardar el PDF localmente: ${
           error.message || "Error desconocido"
         }`
@@ -202,12 +207,12 @@ export default function PdfViewer({
 
   const savePdfToDrive = useCallback(async () => {
     if (!activePdfUrl) {
-      alert("No hay un PDF activo para guardar.");
+      toast.error("No hay un PDF activo para guardar.");
       setFileSelectionModalOpen(false);
       return;
     }
     if (!googleAccessToken) {
-      alert(
+      toast.error(
         "No estás autenticado con Google. Por favor, inicia sesión para guardar en Drive."
       );
       setFileSelectionModalOpen(false);
@@ -215,7 +220,7 @@ export default function PdfViewer({
     }
     const activePdf = pdfs.find((pdf) => pdf.url === activePdfUrl);
     if (!activePdf) {
-      alert("No se encontró el PDF activo para guardar.");
+      toast.error("No se encontró el PDF activo para guardar.");
       setFileSelectionModalOpen(false);
       return;
     }
@@ -227,7 +232,9 @@ export default function PdfViewer({
       defaultFileName
     );
     if (!fileName) {
-      alert("Operación de guardar cancelada. No se proporcionó un nombre.");
+      toast.error(
+        "Operación de guardar cancelada. No se proporcionó un nombre."
+      );
       setFileSelectionModalOpen(false);
       return;
     }
@@ -241,7 +248,7 @@ export default function PdfViewer({
       blob = await response.blob();
     } catch (error) {
       console.error("Error al obtener el Blob del PDF activo:", error);
-      alert(
+      toast.error(
         "No se pudo preparar el PDF para guardar. Asegúrate de que el PDF esté cargado correctamente."
       );
       setFileSelectionModalOpen(false);
@@ -249,7 +256,7 @@ export default function PdfViewer({
     }
 
     if (!window.gapi || !window.gapi.client || !window.gapi.client.drive) {
-      alert(
+      toast.error(
         "Las APIs de Google Drive no están cargadas o no se han inicializado correctamente. Intenta recargar la página."
       );
       console.error("gapi.client.drive no está disponible:", window.gapi);
@@ -293,13 +300,13 @@ export default function PdfViewer({
       });
 
       if (response.status === 200) {
-        alert(
+        toast.success(
           `PDF "${response.result.name}" subido exitosamente a Google Drive.`
         );
         console.log("PDF guardado en Drive:", response.result);
       } else {
         console.error("Error al subir el PDF:", response);
-        alert(
+        toast.error(
           `Error al subir el PDF a Google Drive: ${
             response.statusText || "Error desconocido"
           }.`
@@ -313,7 +320,7 @@ export default function PdfViewer({
       } else if (error.message) {
         errorMessage = error.message;
       }
-      alert(`Error al subir el PDF a Google Drive: ${errorMessage}.`);
+      toast.error(`Error al subir el PDF a Google Drive: ${errorMessage}.`);
     } finally {
       setFileSelectionModalOpen(false);
     }

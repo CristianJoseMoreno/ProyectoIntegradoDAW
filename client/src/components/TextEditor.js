@@ -4,6 +4,7 @@ import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
 import { Dialog, Transition } from "@headlessui/react";
 import mammoth from "mammoth";
+import toast from "react-hot-toast";
 
 // Importa iconos.
 import {
@@ -17,6 +18,8 @@ import { PlusIcon } from "@heroicons/react/24/outline";
 
 // Importa el nuevo ReferenceFormModal
 import ReferenceFormModal from "./ReferenceFormModal";
+// Importa la nueva modal de Prompt/Confirmación
+import PromptConfirmModal from "./PromptConfirmModal"; // <-- NUEVA IMPORTACIÓN
 
 export default function TextEditor({ doc, setDoc, googleAccessToken }) {
   // Estado para controlar el modal de selección de archivo (UPLOAD/DOWNLOAD)
@@ -25,6 +28,17 @@ export default function TextEditor({ doc, setDoc, googleAccessToken }) {
 
   // NUEVO ESTADO para controlar la visibilidad del modal de referencias
   const [isReferenceModalOpen, setIsReferenceModalOpen] = useState(false);
+
+  // NUEVOS ESTADOS para la modal de PROMPT/CONFIRMACIÓN (para guardar archivos)
+  const [isPromptModalOpen, setIsPromptModalOpen] = useState(false);
+  const [promptModalConfig, setPromptModalConfig] = useState({
+    title: "",
+    message: "",
+    showInputField: false,
+    inputPlaceholder: "",
+    onConfirm: () => {}, // Función a llamar al confirmar
+    iconType: "document", // O 'warning'
+  });
 
   // Ref para el editor de texto Quill para la inserción de texto
   const quillRef = useRef(null);
@@ -56,6 +70,7 @@ export default function TextEditor({ doc, setDoc, googleAccessToken }) {
       const reader = new FileReader();
       reader.onload = (event) => {
         setDoc(event.target.result);
+        toast.success(`Archivo "${file.name}" cargado desde Mi dispositivo.`);
       };
       reader.readAsText(file);
     } else if (ext === "docx") {
@@ -63,27 +78,45 @@ export default function TextEditor({ doc, setDoc, googleAccessToken }) {
         const arrayBuffer = await file.arrayBuffer();
         const result = await mammoth.convertToHtml({ arrayBuffer });
         setDoc(result.value);
+        toast.success(`Archivo "${file.name}" cargado desde Mi dispositivo.`);
       } catch (err) {
-        alert("Error leyendo archivo .docx: " + err.message);
+        toast.error("Error leyendo archivo .docx: " + err.message);
       }
     } else {
-      alert("Solo se permiten archivos .txt y .docx");
+      toast.error("Solo se permiten archivos .txt y .docx");
     }
 
     e.target.value = null;
     setFileSelectionModalOpen(false);
   };
 
-  const handleSave = () => {
-    const fileName = prompt(
-      "Introduce el nombre del archivo (sin extensión). Se guardará como .txt"
-    );
-    if (!fileName) {
-      alert("Operación de guardar cancelada.");
-      setFileSelectionModalOpen(false);
-      return;
-    }
+  // Función para abrir la modal de prompt para guardar localmente
+  const requestFileNameLocal = () => {
+    setPromptModalConfig({
+      title: "Guardar archivo en Mi dispositivo",
+      message:
+        "Introduce el nombre del archivo (sin extensión). Se guardará como .txt",
+      showInputField: true,
+      inputPlaceholder: "mi_documento",
+      // La función onConfirm ahora se encarga de llamar a executeSaveLocal Y cerrar la modal
+      onConfirm: (fileName) => {
+        if (fileName) {
+          executeSaveLocal(fileName);
+          setIsPromptModalOpen(false); // <-- Cierra la modal aquí
+        } else {
+          toast.error(
+            "Operación de guardar cancelada: Nombre de archivo vacío."
+          );
+          // NO CERRAR la modal aquí para que el usuario vea el error y pueda corregir
+        }
+      },
+      iconType: "document",
+    });
+    setIsPromptModalOpen(true);
+  };
 
+  // Lógica real para guardar localmente, llamada desde onConfirm de la modal
+  const executeSaveLocal = (fileName) => {
     const tempDiv = document.createElement("div");
     tempDiv.innerHTML = doc;
     const plainTextContent = tempDiv.textContent || tempDiv.innerText || "";
@@ -100,22 +133,22 @@ export default function TextEditor({ doc, setDoc, googleAccessToken }) {
     link.click();
     document.body.removeChild(link);
 
-    alert(
+    toast.success(
       `Documento "${fileName}.txt" guardado con éxito. En futuras versiones se aceptarán más formatos de guardado.`
     );
-    setFileSelectionModalOpen(false);
+    // Ya no necesitas setFileSelectionModalOpen(false) aquí, la modal se cierra en onConfirm
   };
 
   const openGoogleDrivePicker = () => {
     if (!window.gapi || !window.gapi.client || !googleAccessToken) {
-      alert(
+      toast.error(
         "Google Drive API no cargada o no autenticada. Intenta recargar la página."
       );
       setFileSelectionModalOpen(false);
       return;
     }
 
-    alert(
+    toast(
       "Para cargar archivos de Google Drive, el documento debe estar configurado como 'Visible para todos' (enlace)." +
         " En futuras versiones, mejoraremos esta funcionalidad."
     );
@@ -131,7 +164,7 @@ export default function TextEditor({ doc, setDoc, googleAccessToken }) {
       .build();
 
     if (!window.google || !window.google.picker) {
-      alert(
+      toast.error(
         "El servicio de selección de archivos de Google no está listo. Intenta recargar la página."
       );
       setFileSelectionModalOpen(false);
@@ -148,10 +181,10 @@ export default function TextEditor({ doc, setDoc, googleAccessToken }) {
       const mimeType = doc.mimeType;
       try {
         await downloadFileFromDrive(fileId, fileName, mimeType);
-        alert(`Archivo "${fileName}" cargado desde Google Drive.`);
+        toast.success(`Archivo "${fileName}" cargado desde Google Drive.`);
       } catch (error) {
         console.error("Error en pickerCallback al descargar archivo:", error);
-        alert(
+        toast.error(
           `Error al cargar el archivo "${fileName}": ${
             error.message || "Error desconocido"
           }. Asegúrate de tener permisos.`
@@ -279,35 +312,50 @@ export default function TextEditor({ doc, setDoc, googleAccessToken }) {
     }
   };
 
-  const handleSaveToDrive = async () => {
+  // Función para abrir la modal de prompt para guardar en Google Drive
+  const requestFileNameForDrive = () => {
+    setPromptModalConfig({
+      title: "Guardar archivo en Google Drive",
+      message:
+        "Introduce el nombre del archivo para Google Drive (ej: mi_documento). Se guardará como .txt",
+      showInputField: true,
+      inputPlaceholder: "mi_documento",
+      // La función onConfirm ahora se encarga de llamar a executeSaveToDrive Y cerrar la modal
+      onConfirm: (fileName) => {
+        if (fileName) {
+          executeSaveToDrive(fileName);
+          setIsPromptModalOpen(false); // <-- Cierra la modal aquí
+        } else {
+          toast.error(
+            "Operación de guardar cancelada: Nombre de archivo vacío."
+          );
+          // NO CERRAR la modal aquí para que el usuario vea el error y pueda corregir
+        }
+      },
+      iconType: "document",
+    });
+    setIsPromptModalOpen(true);
+  };
+
+  // Lógica real para guardar en Google Drive, llamada desde onConfirm de la modal
+  const executeSaveToDrive = async (fileName) => {
     if (
       !window.gapi ||
       !window.gapi.client ||
       !window.gapi.client.drive ||
       !googleAccessToken
     ) {
-      alert(
+      toast.error(
         "Las APIs de Google Drive no están cargadas o no estás autenticado."
       );
-      setFileSelectionModalOpen(false);
+      // setFileSelectionModalOpen(false); // Esto ya no es necesario aquí
       return;
     }
 
-    alert(
+    toast(
       "Actualmente, solo se puede guardar como texto plano (.txt) en Google Drive para asegurar la compatibilidad. " +
         "En futuras versiones, se aceptarán más formatos."
     );
-
-    const fileName = prompt(
-      "Introduce el nombre del archivo para Google Drive (ej: mi_documento.txt). Se guardará como texto plano."
-    );
-    if (!fileName) {
-      alert(
-        "Nombre de archivo no proporcionado. La operación de guardar ha sido cancelada."
-      );
-      setFileSelectionModalOpen(false);
-      return;
-    }
 
     let mimeType = "text/plain";
     const tempDiv = document.createElement("div");
@@ -335,12 +383,12 @@ export default function TextEditor({ doc, setDoc, googleAccessToken }) {
       });
 
       if (response.status === 200) {
-        alert(
+        toast.success(
           `Archivo "${response.result.name}" (ID: ${response.result.id}, Tipo: ${response.result.mimeType}) subido a Google Drive con éxito.`
         );
       } else {
         console.error("Error inesperado al subir archivo:", response);
-        alert(
+        toast.error(
           `Error al subir el archivo a Google Drive: ${
             response.statusText || "Error desconocido"
           }.`
@@ -354,13 +402,15 @@ export default function TextEditor({ doc, setDoc, googleAccessToken }) {
       } else if (error.message) {
         errorMessage = error.message;
       }
-      alert(`Error al subir el archivo a Google Drive: ${errorMessage}.`);
+      toast.error(`Error al subir el archivo a Google Drive: ${errorMessage}.`);
     } finally {
-      setFileSelectionModalOpen(false);
+      // Ya no necesitas setFileSelectionModalOpen(false) aquí, la modal se cierra en onConfirm
     }
   };
 
   const handleActionSelection = (source) => {
+    setFileSelectionModalOpen(false); // Cierra la modal de selección de acción
+
     if (currentAction === "upload") {
       if (source === "local") {
         openFileDialog();
@@ -369,9 +419,9 @@ export default function TextEditor({ doc, setDoc, googleAccessToken }) {
       }
     } else if (currentAction === "download") {
       if (source === "local") {
-        handleSave();
+        requestFileNameLocal(); // Llama a la nueva función para pedir el nombre
       } else if (source === "drive") {
-        handleSaveToDrive();
+        requestFileNameForDrive(); // Llama a la nueva función para pedir el nombre
       }
     }
   };
@@ -446,7 +496,7 @@ export default function TextEditor({ doc, setDoc, googleAccessToken }) {
         />
       </div>
 
-      {/* MODAL PARA SELECCIÓN DE ORIGEN/DESTINO DE ARCHIVOS (sin cambios) */}
+      {/* MODAL PARA SELECCIÓN DE ORIGEN/DESTINO DE ARCHIVOS */}
       <Transition appear show={fileSelectionModalOpen} as={React.Fragment}>
         <Dialog
           as="div"
@@ -537,11 +587,21 @@ export default function TextEditor({ doc, setDoc, googleAccessToken }) {
       <ReferenceFormModal
         isOpen={isReferenceModalOpen}
         onClose={() => setIsReferenceModalOpen(false)}
-        onSaveSuccess={() => {
-          /* Puedes añadir un toast o alert aquí si quieres */
-        }}
+        onSaveSuccess={() => {}}
         forTextEditor={true} // Muy importante: indica que es para el editor de texto
         onInsertFormattedText={handleInsertFormattedText} // Callback para insertar el texto
+      />
+
+      {/* Nueva Modal de Prompt/Confirmación para guardar */}
+      <PromptConfirmModal
+        isOpen={isPromptModalOpen}
+        onClose={() => setIsPromptModalOpen(false)} // Aquí cerramos la modal si se pulsa Cancelar o si se llama directamente onCLose
+        onConfirm={promptModalConfig.onConfirm}
+        title={promptModalConfig.title}
+        message={promptModalConfig.message}
+        showInputField={promptModalConfig.showInputField}
+        inputPlaceholder={promptModalConfig.inputPlaceholder}
+        iconType={promptModalConfig.iconType}
       />
     </div>
   );
