@@ -116,7 +116,7 @@ function Footer({ onNavLinkClick }) {
             React.createElement(
               "a",
               {
-                href: "https://linkedin.com/in/tuperfil",
+                href: "https://www.linkedin.com/in/cristian-jose-m-494a7a269/",
                 target: "_blank",
                 rel: "noopener noreferrer",
                 className:
@@ -128,7 +128,7 @@ function Footer({ onNavLinkClick }) {
             React.createElement(
               "a",
               {
-                href: "mailto:tucorreo@example.com",
+                href: "mailto:cjmorenoberlanga@gmail.com",
                 className:
                   "text-gray-700 hover:text-primary transition-colors duration-200 text-lg",
                 "aria-label": "Gmail",

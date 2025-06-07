@@ -9,6 +9,7 @@ import {
   CloudArrowDownIcon,
 } from "@heroicons/react/24/outline";
 import toast from "react-hot-toast";
+import PromptConfirmModal from "./PromptConfirmModal";
 
 export default function PdfViewer({
   pdfs,
@@ -23,6 +24,15 @@ export default function PdfViewer({
   const pdfInputRef = useRef(null);
   const [fileSelectionModalOpen, setFileSelectionModalOpen] = useState(false);
   const [currentAction, setCurrentAction] = useState(null);
+  const [isPromptModalOpen, setIsPromptModalOpen] = useState(false);
+  const [promptModalConfig, setPromptModalConfig] = useState({
+    title: "",
+    message: "",
+    showInputField: false,
+    inputPlaceholder: "",
+    onConfirm: () => {}, // Función a llamar al confirmar
+    iconType: "document", // O 'warning'
+  });
 
   const openPdfDialog = useCallback(() => {
     pdfInputRef.current?.click();
@@ -136,66 +146,95 @@ export default function PdfViewer({
       toast.error(
         "El servicio de selección de archivos de Google no está listo. Intenta recargar la página."
       );
+      // Aquí también debería ser setFileSelectionModalOpen(false); en lugar de setIsPromptModalOpen(false);
+      // Si la API no está lista, cierras el modal de selección de archivos, no el de prompt
       setFileSelectionModalOpen(false);
       return;
     }
     picker.setVisible(true);
   }, [googleAccessToken, areGoogleApisReady, pickerCallback]);
 
-  const handleSavePdfLocal = useCallback(async () => {
+  // CAMBIO: Lógica real para guardar localmente, ahora llamada desde onConfirm de la modal
+  const executeSavePdfLocal = useCallback(
+    async (fileName) => {
+      if (!activePdfUrl) {
+        toast.error("No hay un PDF activo para guardar.");
+        // No cierres el modal aquí, el onConfirm ya lo hará.
+        return;
+      }
+
+      const activePdf = pdfs.find((pdf) => pdf.url === activePdfUrl);
+      if (!activePdf) {
+        toast.error("No se encontró el PDF activo para guardar.");
+        // No cierres el modal aquí, el onConfirm ya lo hará.
+        return;
+      }
+
+      try {
+        const response = await fetch(activePdf.url);
+        const blob = await response.blob();
+
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `${fileName}.pdf`;
+
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        toast.success(
+          `PDF "${fileName}.pdf" guardado con éxito en su dispositivo.`
+        );
+      } catch (error) {
+        console.error("Error al guardar PDF localmente:", error);
+        toast.error(
+          `Error al guardar el PDF localmente: ${
+            error.message || "Error desconocido"
+          }`
+        );
+      } finally {
+        // El onConfirm del promptModalConfig cerrará el modal
+      }
+    },
+    [activePdfUrl, pdfs]
+  );
+
+  // CAMBIO: La función handleSavePdfLocal ahora usa el PromptConfirmModal
+  const handleSavePdfLocal = useCallback(() => {
     if (!activePdfUrl) {
       toast.error("No hay un PDF activo para guardar.");
-      setFileSelectionModalOpen(false);
+      setFileSelectionModalOpen(false); // Cierra el modal de selección si no hay PDF
       return;
     }
-
     const activePdf = pdfs.find((pdf) => pdf.url === activePdfUrl);
-    if (!activePdf) {
-      toast.error("No se encontró el PDF activo para guardar.");
-      setFileSelectionModalOpen(false);
-      return;
-    }
+    const defaultFileName = activePdf?.name.endsWith(".pdf")
+      ? activePdf.name.slice(0, -4)
+      : activePdf?.name || "documento";
 
-    const fileName = prompt(
-      "Introduce el nombre del archivo (sin extensión). Se guardará como .pdf",
-      activePdf.name.endsWith(".pdf")
-        ? activePdf.name.slice(0, -4)
-        : activePdf.name
-    );
-    if (!fileName) {
-      toast.error("Operación de guardar cancelada.");
-      setFileSelectionModalOpen(false);
-      return;
-    }
+    setPromptModalConfig({
+      title: "Guardar archivo en Mi dispositivo",
+      message:
+        "Introduce el nombre del archivo (sin extensión). Se guardará como .pdf",
+      showInputField: true,
+      inputPlaceholder: defaultFileName,
+      onConfirm: (fileName) => {
+        if (fileName) {
+          executeSavePdfLocal(fileName); // Llama a la lógica de guardado real
+          setIsPromptModalOpen(false); // Cierra el modal después de la confirmación
+        } else {
+          toast.error(
+            "Operación de guardar cancelada: Nombre de archivo vacío."
+          );
+          // No cierres el modal aquí para que el usuario pueda corregir
+        }
+      },
+      iconType: "document",
+    });
+    setIsPromptModalOpen(true); // Abre el modal de prompt
+    // setFileSelectionModalOpen(false); // Podrías cerrar el modal de selección aquí o en onConfirm del prompt
+  }, [activePdfUrl, pdfs, executeSavePdfLocal]);
 
-    try {
-      const response = await fetch(activePdf.url);
-      const blob = await response.blob();
-
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = `${fileName}.pdf`;
-
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      toast.success(
-        `PDF "${fileName}.pdf" guardado con éxito en su dispositivo.`
-      );
-    } catch (error) {
-      console.error("Error al guardar PDF localmente:", error);
-      toast.error(
-        `Error al guardar el PDF localmente: ${
-          error.message || "Error desconocido"
-        }`
-      );
-    } finally {
-      setFileSelectionModalOpen(false);
-    }
-  }, [activePdfUrl, pdfs]);
-
-  // Helper function to convert Blob to Base64
+  // Helper function to convert Blob to Base64 (Esta función ya existía y es correcta)
   const blobToBase64 = (blob) => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -205,10 +244,121 @@ export default function PdfViewer({
     });
   };
 
-  const savePdfToDrive = useCallback(async () => {
+  // CAMBIO: Lógica real para guardar en Google Drive, ahora llamada desde onConfirm de la modal
+  const executeSavePdfToDrive = useCallback(
+    async (fileName) => {
+      if (!activePdfUrl) {
+        toast.error("No hay un PDF activo para guardar.");
+        // No cierres el modal aquí, el onConfirm ya lo hará.
+        return;
+      }
+      if (!googleAccessToken) {
+        toast.error(
+          "No estás autenticado con Google. Por favor, inicia sesión para guardar en Drive."
+        );
+        // No cierres el modal aquí, el onConfirm ya lo hará.
+        return;
+      }
+      const activePdf = pdfs.find((pdf) => pdf.url === activePdfUrl);
+      if (!activePdf) {
+        toast.error("No se encontró el PDF activo para guardar.");
+        // No cierres el modal aquí, el onConfirm ya lo hará.
+        return;
+      }
+
+      let blob;
+      try {
+        const response = await fetch(activePdf.url);
+        blob = await response.blob();
+      } catch (error) {
+        console.error("Error al obtener el Blob del PDF activo:", error);
+        toast.error(
+          "No se pudo preparar el PDF para guardar. Asegúrate de que el PDF esté cargado correctamente."
+        );
+        // No cierres el modal aquí, el onConfirm ya lo hará.
+        return;
+      }
+
+      if (!window.gapi || !window.gapi.client || !window.gapi.client.drive) {
+        toast.error(
+          "Las APIs de Google Drive no están cargadas o no se han inicializado correctamente. Intenta recargar la página."
+        );
+        console.error("gapi.client.drive no está disponible:", window.gapi);
+        // No cierres el modal aquí, el onConfirm ya lo hará.
+        return;
+      }
+
+      try {
+        const base64Data = await blobToBase64(blob); // Convertir blob a Base64
+
+        const boundary = "-------314159265358979323846"; // Define a unique boundary
+        const delimiter = "\r\n--" + boundary + "\r\n";
+        const close_delimiter = "\r\n--" + boundary + "--";
+
+        const metadata = {
+          name: fileName.toLowerCase().endsWith(".pdf")
+            ? fileName
+            : `${fileName}.pdf`,
+          mimeType: "application/pdf",
+          // parents: [] // If you want to put it in a specific folder, use parent IDs
+        };
+
+        const multipartRequestBody =
+          delimiter +
+          "Content-Type: application/json; charset=UTF-8\r\n\r\n" +
+          JSON.stringify(metadata) +
+          delimiter +
+          "Content-Type: application/pdf\r\n" + // Explicitly set content type for the file
+          "Content-Transfer-Encoding: base64\r\n" + // Indicate base64 encoding
+          "\r\n" +
+          base64Data + // Insert the Base64 data
+          close_delimiter;
+
+        const response = await window.gapi.client.request({
+          path: "https://www.googleapis.com/upload/drive/v3/files",
+          method: "POST",
+          params: { uploadType: "multipart" },
+          headers: {
+            Authorization: `Bearer ${googleAccessToken}`,
+            "Content-Type": `multipart/related; boundary="${boundary}"`, // Set content type with boundary
+          },
+          body: multipartRequestBody, // Send the manually constructed body string
+        });
+
+        if (response.status === 200) {
+          toast.success(
+            `PDF "${response.result.name}" subido exitosamente a Google Drive.`
+          );
+          console.log("PDF guardado en Drive:", response.result);
+        } else {
+          console.error("Error al subir el PDF:", response);
+          toast.error(
+            `Error al subir el PDF a Google Drive: ${
+              response.statusText || "Error desconocido"
+            }.`
+          );
+        }
+      } catch (error) {
+        console.error("Excepción al subir PDF a Drive:", error);
+        let errorMessage = "Error desconocido al subir el PDF.";
+        if (error.result && error.result.error && error.result.error.message) {
+          errorMessage = error.result.error.message;
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+        toast.error(`Error al subir el PDF a Google Drive: ${errorMessage}.`);
+      } finally {
+        // El onConfirm del promptModalConfig cerrará el modal
+      }
+    },
+    [activePdfUrl, googleAccessToken, pdfs]
+  );
+
+  // CAMBIO: La función savePdfToDrive ahora usa el PromptConfirmModal
+  const savePdfToDrive = useCallback(() => {
     if (!activePdfUrl) {
       toast.error("No hay un PDF activo para guardar.");
-      setFileSelectionModalOpen(false);
+      setFileSelectionModalOpen(false); // Cierra el modal de selección si no hay PDF
       return;
     }
     if (!googleAccessToken) {
@@ -218,116 +368,40 @@ export default function PdfViewer({
       setFileSelectionModalOpen(false);
       return;
     }
+
     const activePdf = pdfs.find((pdf) => pdf.url === activePdfUrl);
-    if (!activePdf) {
-      toast.error("No se encontró el PDF activo para guardar.");
-      setFileSelectionModalOpen(false);
-      return;
-    }
-    const defaultFileName = activePdf.name.endsWith(".pdf")
+    const defaultFileName = activePdf?.name.endsWith(".pdf")
       ? activePdf.name.slice(0, -4)
-      : activePdf.name;
-    const fileName = prompt(
-      `Introduce el nombre del archivo para Google Drive (se guardará como .pdf):`,
-      defaultFileName
-    );
-    if (!fileName) {
-      toast.error(
-        "Operación de guardar cancelada. No se proporcionó un nombre."
-      );
-      setFileSelectionModalOpen(false);
-      return;
-    }
-    const finalFileName = fileName.toLowerCase().endsWith(".pdf")
-      ? fileName
-      : `${fileName}.pdf`;
+      : activePdf?.name || "documento";
 
-    let blob;
-    try {
-      const response = await fetch(activePdf.url);
-      blob = await response.blob();
-    } catch (error) {
-      console.error("Error al obtener el Blob del PDF activo:", error);
-      toast.error(
-        "No se pudo preparar el PDF para guardar. Asegúrate de que el PDF esté cargado correctamente."
-      );
-      setFileSelectionModalOpen(false);
-      return;
-    }
+    setPromptModalConfig({
+      title: "Guardar archivo en Google Drive",
+      message:
+        "Introduce el nombre del archivo para Google Drive (se guardará como .pdf):",
+      showInputField: true,
+      inputPlaceholder: defaultFileName,
+      onConfirm: (fileName) => {
+        if (fileName) {
+          executeSavePdfToDrive(fileName); // Llama a la lógica de guardado real
+          setIsPromptModalOpen(false); // Cierra el modal después de la confirmación
+        } else {
+          toast.error(
+            "Operación de guardar cancelada: Nombre de archivo vacío."
+          );
+          // No cierres el modal aquí para que el usuario pueda corregir
+        }
+      },
+      iconType: "document",
+    });
+    setIsPromptModalOpen(true); // Abre el modal de prompt
+    // setFileSelectionModalOpen(false); // Podrías cerrar el modal de selección aquí o en onConfirm del prompt
+  }, [activePdfUrl, googleAccessToken, pdfs, executeSavePdfToDrive]);
 
-    if (!window.gapi || !window.gapi.client || !window.gapi.client.drive) {
-      toast.error(
-        "Las APIs de Google Drive no están cargadas o no se han inicializado correctamente. Intenta recargar la página."
-      );
-      console.error("gapi.client.drive no está disponible:", window.gapi);
-      setFileSelectionModalOpen(false);
-      return;
-    }
-
-    try {
-      const base64Data = await blobToBase64(blob); // Convertir blob a Base64
-
-      const boundary = "-------314159265358979323846"; // Define a unique boundary
-      const delimiter = "\r\n--" + boundary + "\r\n";
-      const close_delimiter = "\r\n--" + boundary + "--";
-
-      const metadata = {
-        name: finalFileName,
-        mimeType: "application/pdf",
-        // parents: [] // If you want to put it in a specific folder, use parent IDs
-      };
-
-      const multipartRequestBody =
-        delimiter +
-        "Content-Type: application/json; charset=UTF-8\r\n\r\n" +
-        JSON.stringify(metadata) +
-        delimiter +
-        "Content-Type: application/pdf\r\n" + // Explicitly set content type for the file
-        "Content-Transfer-Encoding: base64\r\n" + // Indicate base64 encoding
-        "\r\n" +
-        base64Data + // Insert the Base64 data
-        close_delimiter;
-
-      const response = await window.gapi.client.request({
-        path: "https://www.googleapis.com/upload/drive/v3/files",
-        method: "POST",
-        params: { uploadType: "multipart" },
-        headers: {
-          Authorization: `Bearer ${googleAccessToken}`,
-          "Content-Type": `multipart/related; boundary="${boundary}"`, // Set content type with boundary
-        },
-        body: multipartRequestBody, // Send the manually constructed body string
-      });
-
-      if (response.status === 200) {
-        toast.success(
-          `PDF "${response.result.name}" subido exitosamente a Google Drive.`
-        );
-        console.log("PDF guardado en Drive:", response.result);
-      } else {
-        console.error("Error al subir el PDF:", response);
-        toast.error(
-          `Error al subir el PDF a Google Drive: ${
-            response.statusText || "Error desconocido"
-          }.`
-        );
-      }
-    } catch (error) {
-      console.error("Excepción al subir PDF a Drive:", error);
-      let errorMessage = "Error desconocido al subir el PDF.";
-      if (error.result && error.result.error && error.result.error.message) {
-        errorMessage = error.result.error.message;
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      toast.error(`Error al subir el PDF a Google Drive: ${errorMessage}.`);
-    } finally {
-      setFileSelectionModalOpen(false);
-    }
-  }, [activePdfUrl, googleAccessToken, pdfs]); // dependencias correctas
-
+  // CAMBIO: handleActionSelection llama a las funciones que abren el modal
   const handleActionSelection = useCallback(
     (source) => {
+      setFileSelectionModalOpen(false); // Cierra el modal de selección antes de abrir el de nombre
+
       if (currentAction === "upload") {
         if (source === "local") {
           openPdfDialog();
@@ -336,9 +410,9 @@ export default function PdfViewer({
         }
       } else if (currentAction === "download") {
         if (source === "local") {
-          handleSavePdfLocal();
+          handleSavePdfLocal(); // Ahora esta función abre el PromptConfirmModal
         } else if (source === "drive") {
-          savePdfToDrive();
+          savePdfToDrive(); // Ahora esta función abre el PromptConfirmModal
         }
       }
     },
@@ -346,8 +420,8 @@ export default function PdfViewer({
       currentAction,
       openPdfDialog,
       openGoogleDrivePicker,
-      handleSavePdfLocal,
-      savePdfToDrive,
+      handleSavePdfLocal, // Dependencia añadida
+      savePdfToDrive, // Dependencia añadida
     ]
   );
 
@@ -415,6 +489,7 @@ export default function PdfViewer({
       </div>
 
       {activePdfUrl ? (
+        // Uso de `key` aquí para forzar la recarga del iframe si la URL activa cambia
         <iframe
           key={activePdfUrl}
           src={`/web/viewer.html?file=${encodeURIComponent(activePdfUrl)}`}
@@ -427,7 +502,7 @@ export default function PdfViewer({
         </div>
       )}
 
-      {/* MODAL PARA SELECCIÓN DE ORIGEN/DESTINO DE ARCHIVOS */}
+      {/* MODAL PARA SELECCIÓN DE ORIGEN/DESTINO DE ARCHIVOS (Este modal ya estaba bien) */}
       <Transition appear show={fileSelectionModalOpen} as={React.Fragment}>
         <Dialog
           as="div"
@@ -515,6 +590,23 @@ export default function PdfViewer({
           </div>
         </Dialog>
       </Transition>
+
+      {/* CAMBIO: Se añade el PromptConfirmModal */}
+      <PromptConfirmModal
+        isOpen={isPromptModalOpen}
+        onClose={() => {
+          setIsPromptModalOpen(false);
+          // Opcional: Si el modal de selección de origen se cerró, podrías querer reabrirlo aquí
+          // o manejar un estado más complejo para el flujo de UX si el usuario cancela en el prompt.
+          // Por ahora, solo cerramos este modal.
+        }}
+        onConfirm={promptModalConfig.onConfirm}
+        title={promptModalConfig.title}
+        message={promptModalConfig.message}
+        showInputField={promptModalConfig.showInputField}
+        inputPlaceholder={promptModalConfig.inputPlaceholder}
+        iconType={promptModalConfig.iconType}
+      />
     </div>
   );
 }
