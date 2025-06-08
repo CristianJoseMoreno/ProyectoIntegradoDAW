@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: Navbar.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: Navbar.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import React, { useState, useRef } from "react";
+import { Link } from "react-router-dom";
+
+/**
+ * @constant {string} logoSrc - La ruta al logotipo principal de la aplicación.
+ */
+const logoSrc = `${process.env.PUBLIC_URL}/logo.png`;
+
+/**
+ * @constant {string} googleLogoSrc - La ruta al logotipo de Google para el botón de inicio de sesión.
+ */
+const googleLogoSrc = `${process.env.PUBLIC_URL}/logo_google.png`;
+
+/**
+ * Componente Navbar.
+ * La barra de navegación principal de la aplicación. Muestra enlaces de navegación,
+ * información del usuario si está autenticado (con un menú desplegable), o un botón de inicio de sesión.
+ *
+ * @param {object} props - Las propiedades del componente.
+ * @param {object | null} props.user - Objeto de usuario autenticado o `null` si no hay usuario. Contiene `name` y `picture` (URL de la imagen de perfil).
+ * @param {function(): void} props.handleLogout - Callback para cerrar la sesión del usuario.
+ * @param {function(): void} props.handleLoginClick - Callback para iniciar el proceso de inicio de sesión (típicamente con Google).
+ * @returns {JSX.Element} El componente de la barra de navegación.
+ */
+const Navbar = ({ user, handleLogout, handleLoginClick }) => {
+  /**
+   * Estado para controlar la apertura y cierre del menú desplegable del perfil.
+   * @type {boolean}
+   */
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  /**
+   * Ref para el elemento del menú desplegable del perfil. Se usa para detectar clics fuera.
+   * @type {React.RefObject&lt;HTMLDivElement>}
+   */
+  const menuRef = useRef(null);
+
+  /**
+   * Estado para controlar si hubo un error al cargar la imagen de perfil del usuario (ej. de Google).
+   * @type {boolean}
+   */
+  const [profileImageError, setProfileImageError] = useState(false);
+
+  /**
+   * Manejador interno para el cierre de sesión que también cierra el menú desplegable.
+   * @type {function(): void}
+   */
+  const internalHandleLogout = () => {
+    handleLogout();
+    setMenuOpen(false);
+  };
+
+  /**
+   * Hook de efecto para restablecer el estado de error de la imagen de perfil
+   * cuando el objeto `user` cambia (ej. al iniciar o cerrar sesión).
+   */
+  React.useEffect(() => {
+    setProfileImageError(false);
+  }, [user]);
+
+  /**
+   * URL de la imagen de perfil de fallback por defecto, usada si `user.picture` no está disponible o falla.
+   * @type {string}
+   */
+  const defaultProfileImageUrl = "https://via.placeholder.com/40?text=C";
+
+  return (
+    &lt;nav className="fixed z-30 h-20 w-full px-5 sm:px-2 md:px-3 md:py-1 lg:px-20 flex items-center justify-between bg-white text-gray-600 navbar-expand-lg shadow-lg">
+      &lt;div>
+        &lt;Link to="/" className="flex items-center">
+          &lt;img src={logoSrc} alt="RefMind Logo" className="h-21 w-28" />
+        &lt;/Link>
+      &lt;/div>
+      &lt;div className="flex flex-row items-center justify-center">
+        {user ? (
+          &lt;>
+            &lt;Link
+              to="/research"
+              className="transition-all duration-100 ease-in-out pb-1 border-b-2 border-transparent hover:border-primary hover:text-primary text-base font-bold tracking-wide mx-4 text-gray-500"
+            >
+              Investigar
+            &lt;/Link>
+
+            &lt;Link
+              to="/references"
+              className="transition-all duration-100 ease-in-out pb-1 border-b-2 border-transparent hover:border-primary hover:text-primary text-base font-bold tracking-wide mx-4 text-gray-500"
+            >
+              Gestionar Referencias
+            &lt;/Link>
+
+            &lt;div className="relative ml-4" ref={menuRef}>
+              {user?.picture &amp;&amp; !profileImageError ? (
+                &lt;img
+                  src={user.picture}
+                  alt="Perfil"
+                  className="w-9 h-9 rounded-full cursor-pointer border hover:scale-105 transition-transform"
+                  onClick={() => setMenuOpen((prev) => !prev)}
+                  onError={(e) => {
+                    console.error(
+                      "Error al cargar la imagen de perfil de Google:",
+                      e
+                    );
+                    setProfileImageError(true);
+                  }}
+                />
+              ) : (
+                &lt;div
+                  className="w-9 h-9 rounded-full cursor-pointer border hover:scale-105 transition-transform bg-gray-300 flex items-center justify-center text-white text-sm font-semibold"
+                  onClick={() => setMenuOpen((prev) => !prev)}
+                >
+                  {user?.name ? user.name.charAt(0).toUpperCase() : "C"}
+                &lt;/div>
+              )}
+
+              &lt;div
+                className={`
+                  absolute right-0 mt-2 w-48 bg-white border rounded-md shadow-lg z-50
+                  transform transition-all duration-200 origin-top
+                  ${
+                    menuOpen
+                      ? "opacity-100 scale-100"
+                      : "opacity-0 scale-95 pointer-events-none"
+                  }
+                `}
+              >
+                &lt;div className="px-4 py-2 text-sm text-gray-700 border-b">
+                  {user?.name || "Usuario"}
+                &lt;/div>
+                &lt;button
+                  onClick={internalHandleLogout}
+                  className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
+                >
+                  Cerrar sesión
+                &lt;/button>
+              &lt;/div>
+            &lt;/div>
+          &lt;/>
+        ) : (
+          &lt;div className="flex items-center space-x-3 ml-4">
+            &lt;span className="font-semibold text-base text-gray-500">Login&lt;/span>
+
+            &lt;button
+              onClick={handleLoginClick}
+              className="w-9 h-9 rounded-full flex items-center justify-center bg-white border border-gray-300 shadow-md hover:shadow-lg transition-shadow duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
+              aria-label="Iniciar sesión con Google"
+            >
+              &lt;img
+                src={googleLogoSrc}
+                alt="Logotipo de Google"
+                className="w-5 h-5"
+              />
+            &lt;/button>
+          &lt;/div>
+        )}
+      &lt;/div>
+    &lt;/nav>
+  );
+};
+
+export default Navbar;
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html#AppSidebar">AppSidebar</a></li><li><a href="global.html#Footer">Footer</a></li><li><a href="global.html#Navbar">Navbar</a></li><li><a href="global.html#PrivateRoute">PrivateRoute</a></li><li><a href="global.html#ReferenceCard">ReferenceCard</a></li><li><a href="global.html#googleLogoSrc">googleLogoSrc</a></li><li><a href="global.html#logoSrc">logoSrc</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.4</a> on Sun Jun 08 2025 07:32:44 GMT+0200 (hora de verano de Europa central)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: ReferenceCard.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: ReferenceCard.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import React from "react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import {
+  faEdit,
+  faTrashAlt,
+  faExternalLinkAlt,
+} from "@fortawesome/free-solid-svg-icons";
+
+/**
+ * @file Componente ReferenceCard.
+ * @description Tarjeta de visualización para una referencia bibliográfica individual.
+ * Muestra los metadatos clave de la referencia y proporciona botones para editar y eliminar.
+ */
+
+/**
+ * Componente ReferenceCard.
+ * Muestra los detalles de una referencia bibliográfica y ofrece acciones de edición y eliminación.
+ *
+ * @param {object} props - Las propiedades del componente.
+ * @param {object} props.reference - El objeto de referencia bibliográfica a mostrar.
+ * @param {function(object): void} props.onEdit - Callback que se ejecuta al hacer clic en el botón de editar, pasando el objeto de referencia.
+ * @param {function(string): void} props.onDelete - Callback que se ejecuta al hacer clic en el botón de eliminar, pasando el ID de la referencia.
+ * @returns {JSX.Element} El componente de la tarjeta de referencia.
+ */
+function ReferenceCard({ reference, onEdit, onDelete }) {
+  const { citationData, url, notes, _id } = reference;
+
+  /**
+   * Extrae y formatea el título de la referencia.
+   * @type {string}
+   */
+  const displayTitle = citationData?.title || "Referencia sin título";
+
+  /**
+   * Extrae y formatea los autores de la referencia.
+   * Convierte un array de objetos de autor CSL a una cadena legible.
+   * @type {string}
+   */
+  const displayAuthors = citationData?.author
+    ? citationData.author
+        .map((a) => `${a.given ? a.given + " " : ""}${a.family || ""}`.trim())
+        .filter(Boolean)
+        .join(", ")
+    : "Autor(es) desconocido(s)";
+
+  /**
+   * Extrae el año de publicación de la referencia.
+   * @type {string | number}
+   */
+  const displayYear =
+    citationData?.issued?.["date-parts"]?.[0]?.[0] || "Año desconocido";
+
+  /**
+   * Extrae y formatea el tipo de referencia (ej. "article-journal" a "Article Journal").
+   * @type {string}
+   */
+  const displayType = citationData?.type
+    ? citationData.type
+        .replace(/-/g, " ")
+        .replace(/\b\w/g, (c) => c.toUpperCase())
+    : "Tipo desconocido";
+
+  /**
+   * Utiliza el campo 'notes' del backend como descripción para la tarjeta.
+   * @type {string}
+   */
+  const displayDescription = notes || "Sin descripción disponible.";
+
+  /**
+   * URL de la imagen de la referencia. Actualmente un placeholder genérico.
+   * @type {string}
+   */
+  const imageUrl = "https://placehold.co/150x150/ADD8E6/000000?text=Ref";
+
+  /**
+   * Categoría de la referencia. Actualmente no está en el esquema de BD, así que se usa "N/A".
+   * @type {string}
+   */
+  const displayCategory = "N/A";
+
+  /**
+   * Etiquetas de la referencia. Actualmente no está en el esquema de BD, así que es un array vacío.
+   * @type {Array&lt;string>}
+   */
+  const displayTags = [];
+
+  return (
+    &lt;div
+      className={`bg-gray-100 rounded-xl p-6 shadow-md hover:shadow-lg transition-all duration-200 ease-in-out
+      flex flex-col md:flex-row items-start md:items-center space-y-4 md:space-y-0 md:space-x-6`}
+    >
+      &lt;div className="flex-1 w-full">
+        &lt;div className="flex justify-between items-start mb-1">
+          &lt;h3 className="text-lg font-semibold text-gray-900">
+            {displayTitle}
+          &lt;/h3>
+        &lt;/div>
+
+        &lt;p className="text-sm text-gray-600 mb-2 line-clamp-2">
+          {displayDescription}
+        &lt;/p>
+
+        &lt;div className="text-sm text-gray-700 mb-1">
+          &lt;p>
+            &lt;span className="font-semibold">Autor(es):&lt;/span> {displayAuthors}
+          &lt;/p>
+          &lt;p>
+            &lt;span className="font-semibold">Tipo:&lt;/span> {displayType}
+          &lt;/p>
+        &lt;/div>
+
+        &lt;div className="flex justify-between items-center mt-2">
+          &lt;span className="bg-gray-200 text-gray-700 text-xs font-semibold px-2.5 py-0.5 rounded-full">
+            {displayYear}
+          &lt;/span>
+          {url &amp;&amp; (
+            &lt;a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:underline text-sm ml-auto"
+            >
+              &lt;FontAwesomeIcon icon={faExternalLinkAlt} className="mr-1" />
+              Ver Recurso
+            &lt;/a>
+          )}
+        &lt;/div>
+      &lt;/div>
+      &lt;div className="flex items-center gap-3 md:ml-4 flex-shrink-0">
+        &lt;button
+          onClick={() => onEdit(reference)}
+          className="p-2 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 transition-colors duration-200"
+          title="Editar Referencia"
+        >
+          &lt;FontAwesomeIcon icon={faEdit} />
+        &lt;/button>
+        &lt;button
+          onClick={() => onDelete(_id)}
+          className="p-2 rounded-full bg-red-100 text-red-600 hover:bg-red-200 transition-colors duration-200"
+          title="Eliminar Referencia"
+        >
+          &lt;FontAwesomeIcon icon={faTrashAlt} />
+        &lt;/button>
+      &lt;/div>
+    &lt;/div>
+  );
+}
+
+export default ReferenceCard;
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html#AppSidebar">AppSidebar</a></li><li><a href="global.html#Footer">Footer</a></li><li><a href="global.html#Navbar">Navbar</a></li><li><a href="global.html#PrivateRoute">PrivateRoute</a></li><li><a href="global.html#ReferenceCard">ReferenceCard</a></li><li><a href="global.html#googleLogoSrc">googleLogoSrc</a></li><li><a href="global.html#logoSrc">logoSrc</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.4</a> on Sun Jun 08 2025 07:32:44 GMT+0200 (hora de verano de Europa central)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: PdfViewer.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: PdfViewer.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import React, { useState, useRef, useCallback } from "react";
+import { Dialog, Transition } from "@headlessui/react";
+import {
+  ArrowUpTrayIcon,
+  ArrowDownTrayIcon,
+  FolderOpenIcon,
+  CloudArrowUpIcon,
+  CloudArrowDownIcon,
+} from "@heroicons/react/24/outline";
+import toast from "react-hot-toast";
+import PromptConfirmModal from "./PromptConfirmModal";
+
+/**
+ * @file Componente PdfViewer.
+ * @description Componente para visualizar archivos PDF, gestionar múltiples PDFs en pestañas,
+ * y permitir la carga y descarga de PDFs desde el dispositivo local o Google Drive.
+ */
+
+/**
+ * Componente PdfViewer.
+ * Proporciona una interfaz para cargar, visualizar y guardar documentos PDF.
+ *
+ * @param {object} props - Las propiedades del componente.
+ * @param {Array&lt;object>} props.pdfs - Un array de objetos PDF cargados, cada uno con `{ url: string, name: string, googleDriveFileId: string | null }`.
+ * @param {string | null} props.activePdfUrl - La URL del PDF actualmente activo y visible en el visor.
+ * @param {function(?string): void} props.setActivePdfUrl - Callback para establecer el PDF activo. Acepta una URL de string o null.
+ * @param {function(object): void} props.addPdf - Callback para añadir un nuevo PDF al estado.
+ * @param {function(string): void} props.removePdf - Callback para eliminar un PDF del estado por su URL.
+ * @param {string | null} props.googleAccessToken - Token de acceso para la API de Google Drive, si el usuario está autenticado.
+ * @param {function(string, string): Promise&lt;void>} props.downloadPdfFromDriveAndAddToState - Función para descargar un PDF de Google Drive y añadirlo al estado.
+ * @param {boolean} props.areGoogleApisReady - Indica si las APIs de Google (gapi, picker) han sido cargadas e inicializadas.
+ * @returns {JSX.Element} El componente del visor de PDF.
+ */
+export default function PdfViewer({
+  pdfs,
+  activePdfUrl,
+  setActivePdfUrl,
+  addPdf,
+  removePdf,
+  googleAccessToken,
+  downloadPdfFromDriveAndAddToState,
+  areGoogleApisReady,
+}) {
+  /**
+   * Ref para el input de tipo 'file' oculto.
+   * @type {React.RefObject&lt;HTMLInputElement>}
+   */
+  const pdfInputRef = useRef(null);
+
+  /**
+   * Estado para controlar la visibilidad del modal de selección de origen/destino de archivos.
+   * @type {boolean}
+   */
+  const [fileSelectionModalOpen, setFileSelectionModalOpen] = useState(false);
+
+  /**
+   * Estado para almacenar la acción actual seleccionada ('upload' o 'download').
+   * @type {?string}
+   */
+  const [currentAction, setCurrentAction] = useState(null);
+
+  /**
+   * Estado para controlar la visibilidad del PromptConfirmModal.
+   * @type {boolean}
+   */
+  const [isPromptModalOpen, setIsPromptModalOpen] = useState(false);
+
+  /**
+   * Estado para configurar las propiedades del PromptConfirmModal.
+   * @type {object}
+   * @property {string} title - Título del modal.
+   * @property {string} message - Mensaje del modal.
+   * @property {boolean} showInputField - Indica si se muestra un campo de entrada.
+   * @property {string} inputPlaceholder - Texto de placeholder del campo de entrada.
+   * @property {function(?string): void} onConfirm - Callback de confirmación del modal.
+   * @property {string} iconType - Tipo de icono ('warning' o 'document').
+   */
+  const [promptModalConfig, setPromptModalConfig] = useState({
+    title: "",
+    message: "",
+    showInputField: false,
+    inputPlaceholder: "",
+    onConfirm: () => {},
+    iconType: "document",
+  });
+
+  /**
+   * Abre el diálogo de selección de archivos del sistema operativo.
+   * @type {function(): void}
+   */
+  const openPdfDialog = useCallback(() => {
+    pdfInputRef.current?.click();
+  }, []);
+
+  /**
+   * Maneja el cambio en el input de archivo. Carga el PDF seleccionado.
+   * @param {React.ChangeEvent&lt;HTMLInputElement>} e - El evento de cambio.
+   * @type {function(React.ChangeEvent&lt;HTMLInputElement>): void}
+   */
+  const handlePdfChange = useCallback(
+    (e) => {
+      const file = e.target.files[0];
+      if (!file || file.type !== "application/pdf") {
+        toast.error("Por favor selecciona un archivo PDF válido.");
+        e.target.value = null;
+        setFileSelectionModalOpen(false);
+        return;
+      }
+
+      const fileUrl = URL.createObjectURL(file);
+      const fileName = file.name;
+      addPdf({ url: fileUrl, name: fileName, googleDriveFileId: null });
+      e.target.value = null;
+      toast.success(`PDF "${fileName}" cargado desde Mi dispositivo.`);
+      setFileSelectionModalOpen(false);
+    },
+    [addPdf]
+  );
+
+  /**
+   * Establece el PDF activo cuando se hace clic en una pestaña.
+   * @param {string} url - La URL del PDF al que se desea cambiar.
+   * @type {function(string): void}
+   */
+  const handleTabClick = useCallback(
+    (url) => {
+      setActivePdfUrl(url);
+    },
+    [setActivePdfUrl]
+  );
+
+  /**
+   * Cierra una pestaña de PDF.
+   * @param {string} urlToRemove - La URL del PDF que se desea cerrar.
+   * @param {React.MouseEvent} e - El evento del clic.
+   * @type {function(string, React.MouseEvent): void}
+   */
+  const handleCloseTab = useCallback(
+    (urlToRemove, e) => {
+      e.stopPropagation();
+      removePdf(urlToRemove);
+    },
+    [removePdf]
+  );
+
+  /**
+   * Callback para el Google Picker. Procesa el archivo PDF seleccionado.
+   * @param {object} data - Los datos devueltos por el Google Picker.
+   * @type {function(object): Promise&lt;void>}
+   */
+  const pickerCallback = useCallback(
+    async (data) => {
+      if (data.action === window.google.picker.Action.PICKED) {
+        const doc = data.docs[0];
+        const fileId = doc.id;
+        const fileName = doc.name;
+        const mimeType = doc.mimeType;
+
+        if (mimeType !== "application/pdf") {
+          toast.error(
+            `El archivo "${fileName}" (Tipo: ${mimeType}) no es un PDF. Por favor, selecciona un archivo PDF.`
+          );
+          setFileSelectionModalOpen(false);
+          return;
+        }
+
+        try {
+          console.log(
+            "DEBUG (PdfViewer): Picker seleccionado - ID:",
+            fileId,
+            "Nombre:",
+            fileName
+          );
+          await downloadPdfFromDriveAndAddToState(fileId, fileName);
+          toast.success(`PDF "${fileName}" cargado desde Google Drive.`);
+        } catch (error) {
+          console.error(
+            "Error (PdfViewer): Error en pickerCallback al descargar PDF:",
+            error
+          );
+          toast.error(
+            `Error al cargar el PDF "${fileName}": ${error.message}.`
+          );
+        } finally {
+          setFileSelectionModalOpen(false);
+        }
+      } else if (data.action === window.google.picker.Action.CANCEL) {
+        setFileSelectionModalOpen(false);
+      }
+    },
+    [downloadPdfFromDriveAndAddToState]
+  );
+
+  /**
+   * Abre el Google Picker para seleccionar un archivo desde Google Drive.
+   * @type {function(): void}
+   */
+  const openGoogleDrivePicker = useCallback(() => {
+    if (
+      !window.gapi ||
+      !window.gapi.client ||
+      !googleAccessToken ||
+      !areGoogleApisReady
+    ) {
+      toast.error(
+        "Google Drive API no cargada o no autenticada. Intenta recargar la página."
+      );
+      setFileSelectionModalOpen(false);
+      return;
+    }
+
+    const view = new window.google.picker.DocsView();
+
+    const picker = new window.google.picker.PickerBuilder()
+      .addView(view)
+      .setOAuthToken(googleAccessToken)
+      .setDeveloperKey(process.env.REACT_APP_GOOGLE_API_KEY)
+      .setCallback(pickerCallback)
+      .build();
+
+    if (!window.google || !window.google.picker) {
+      console.error(
+        "Google Picker no está disponible. Asegúrate de que las APIs se cargaron correctamente."
+      );
+      toast.error(
+        "El servicio de selección de archivos de Google no está listo. Intenta recargar la página."
+      );
+      setFileSelectionModalOpen(false);
+      return;
+    }
+    picker.setVisible(true);
+  }, [googleAccessToken, areGoogleApisReady, pickerCallback]);
+
+  /**
+   * Ejecuta la lógica para guardar el PDF activo en el dispositivo local.
+   * Muestra un toast con el resultado de la operación.
+   * @param {string} fileName - El nombre de archivo deseado para guardar (sin extensión).
+   * @type {function(string): Promise&lt;void>}
+   */
+  const executeSavePdfLocal = useCallback(
+    async (fileName) => {
+      if (!activePdfUrl) {
+        toast.error("No hay un PDF activo para guardar.");
+        return;
+      }
+
+      const activePdf = pdfs.find((pdf) => pdf.url === activePdfUrl);
+      if (!activePdf) {
+        toast.error("No se encontró el PDF activo para guardar.");
+        return;
+      }
+
+      try {
+        const response = await fetch(activePdf.url);
+        const blob = await response.blob();
+
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `${fileName}.pdf`;
+
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        toast.success(
+          `PDF "${fileName}.pdf" guardado con éxito en su dispositivo.`
+        );
+      } catch (error) {
+        console.error("Error al guardar PDF localmente:", error);
+        toast.error(
+          `Error al guardar el PDF localmente: ${
+            error.message || "Error desconocido"
+          }`
+        );
+      }
+    },
+    [activePdfUrl, pdfs]
+  );
+
+  /**
+   * Prepara y abre el `PromptConfirmModal` para solicitar el nombre del archivo
+   * antes de guardar el PDF activo en el dispositivo local.
+   * @type {function(): void}
+   */
+  const handleSavePdfLocal = useCallback(() => {
+    if (!activePdfUrl) {
+      toast.error("No hay un PDF activo para guardar.");
+      setFileSelectionModalOpen(false);
+      return;
+    }
+    const activePdf = pdfs.find((pdf) => pdf.url === activePdfUrl);
+    const defaultFileName = activePdf?.name.endsWith(".pdf")
+      ? activePdf.name.slice(0, -4)
+      : activePdf?.name || "documento";
+
+    setPromptModalConfig({
+      title: "Guardar archivo en Mi dispositivo",
+      message:
+        "Introduce el nombre del archivo (sin extensión). Se guardará como .pdf",
+      showInputField: true,
+      inputPlaceholder: defaultFileName,
+      onConfirm: (fileName) => {
+        // fileName aquí puede ser string o undefined (de PromptConfirmModal)
+        if (fileName) {
+          executeSavePdfLocal(fileName);
+          setIsPromptModalOpen(false);
+        } else {
+          toast.error(
+            "Operación de guardar cancelada: Nombre de archivo vacío."
+          );
+        }
+      },
+      iconType: "document",
+    });
+    setIsPromptModalOpen(true);
+  }, [activePdfUrl, pdfs, executeSavePdfLocal]);
+
+  /**
+   * Convierte un objeto Blob a una cadena Base64.
+   * @param {Blob} blob - El objeto Blob a convertir.
+   * @returns {Promise&lt;string>} Una promesa que resuelve con la cadena Base64 del Blob.
+   * @type {function(Blob): Promise&lt;string>}
+   */
+  const blobToBase64 = (blob) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result.split(",")[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  };
+
+  /**
+   * Ejecuta la lógica para guardar el PDF activo en Google Drive.
+   * Muestra un toast con el resultado de la operación.
+   * @param {string} fileName - El nombre de archivo deseado para guardar en Drive.
+   * @type {function(string): Promise&lt;void>}
+   */
+  const executeSavePdfToDrive = useCallback(
+    async (fileName) => {
+      if (!activePdfUrl) {
+        toast.error("No hay un PDF activo para guardar.");
+        return;
+      }
+      if (!googleAccessToken) {
+        toast.error(
+          "No estás autenticado con Google. Por favor, inicia sesión para guardar en Drive."
+        );
+        return;
+      }
+      const activePdf = pdfs.find((pdf) => pdf.url === activePdfUrl);
+      if (!activePdf) {
+        toast.error("No se encontró el PDF activo para guardar.");
+        return;
+      }
+
+      let blob;
+      try {
+        const response = await fetch(activePdf.url);
+        blob = await response.blob();
+      } catch (error) {
+        console.error("Error al obtener el Blob del PDF activo:", error);
+        toast.error(
+          "No se pudo preparar el PDF para guardar. Asegúrate de que el PDF esté cargado correctamente."
+        );
+        return;
+      }
+
+      if (!window.gapi || !window.gapi.client || !window.gapi.client.drive) {
+        toast.error(
+          "Las APIs de Google Drive no están cargadas o no se han inicializado correctamente. Intenta recargar la página."
+        );
+        console.error("gapi.client.drive no está disponible:", window.gapi);
+        return;
+      }
+
+      try {
+        const base64Data = await blobToBase64(blob);
+
+        const boundary = "-------314159265358979323846";
+        const delimiter = "\r\n--" + boundary + "\r\n";
+        const close_delimiter = "\r\n--" + boundary + "--";
+
+        const metadata = {
+          name: fileName.toLowerCase().endsWith(".pdf")
+            ? fileName
+            : `${fileName}.pdf`,
+          mimeType: "application/pdf",
+        };
+
+        const multipartRequestBody =
+          delimiter +
+          "Content-Type: application/json; charset=UTF-8\r\n\r\n" +
+          JSON.stringify(metadata) +
+          delimiter +
+          "Content-Type: application/pdf\r\n" +
+          "Content-Transfer-Encoding: base64\r\n" +
+          "\r\n" +
+          base64Data +
+          close_delimiter;
+
+        const response = await window.gapi.client.request({
+          path: "https://www.googleapis.com/upload/drive/v3/files",
+          method: "POST",
+          params: { uploadType: "multipart" },
+          headers: {
+            Authorization: `Bearer ${googleAccessToken}`,
+            "Content-Type": `multipart/related; boundary="${boundary}"`,
+          },
+          body: multipartRequestBody,
+        });
+
+        if (response.status === 200) {
+          toast.success(
+            `PDF "${response.result.name}" subido exitosamente a Google Drive.`
+          );
+          console.log("PDF guardado en Drive:", response.result);
+        } else {
+          console.error("Error al subir el PDF:", response);
+          toast.error(
+            `Error al subir el PDF a Google Drive: ${
+              response.statusText || "Error desconocido"
+            }.`
+          );
+        }
+      } catch (error) {
+        console.error("Excepción al subir PDF a Drive:", error);
+        let errorMessage = "Error desconocido al subir el PDF.";
+        if (error.result &amp;&amp; error.result.error &amp;&amp; error.result.error.message) {
+          errorMessage = error.result.error.message;
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+        toast.error(`Error al subir el PDF a Google Drive: ${errorMessage}.`);
+      }
+    },
+    [activePdfUrl, googleAccessToken, pdfs]
+  );
+
+  /**
+   * Prepara y abre el `PromptConfirmModal` para solicitar el nombre del archivo
+   * antes de guardar el PDF activo en Google Drive.
+   * @type {function(): void}
+   */
+  const savePdfToDrive = useCallback(() => {
+    if (!activePdfUrl) {
+      toast.error("No hay un PDF activo para guardar.");
+      setFileSelectionModalOpen(false);
+      return;
+    }
+    if (!googleAccessToken) {
+      toast.error(
+        "No estás autenticado con Google. Por favor, inicia sesión para guardar en Drive."
+      );
+      setFileSelectionModalOpen(false);
+      return;
+    }
+
+    const activePdf = pdfs.find((pdf) => pdf.url === activePdfUrl);
+    const defaultFileName = activePdf?.name.endsWith(".pdf")
+      ? activePdf.name.slice(0, -4)
+      : activePdf?.name || "documento";
+
+    setPromptModalConfig({
+      title: "Guardar archivo en Google Drive",
+      message:
+        "Introduce el nombre del archivo para Google Drive (se guardará como .pdf):",
+      showInputField: true,
+      inputPlaceholder: defaultFileName,
+      onConfirm: (fileName) => {
+        // fileName aquí puede ser string o undefined (de PromptConfirmModal)
+        if (fileName) {
+          executeSavePdfToDrive(fileName);
+          setIsPromptModalOpen(false);
+        } else {
+          toast.error(
+            "Operación de guardar cancelada: Nombre de archivo vacío."
+          );
+        }
+      },
+      iconType: "document",
+    });
+    setIsPromptModalOpen(true);
+  }, [activePdfUrl, googleAccessToken, pdfs, executeSavePdfToDrive]);
+
+  /**
+   * Maneja la selección de la fuente (local o Google Drive) para cargar o guardar PDFs,
+   * y desencadena la acción correspondiente (abrir selector de archivo o modal de nombre).
+   * @param {string} source - La fuente o destino seleccionado. Puede ser 'local' o 'drive'.
+   * @type {function(string): void}
+   */
+  const handleActionSelection = useCallback(
+    (source) => {
+      setFileSelectionModalOpen(false);
+
+      if (currentAction === "upload") {
+        if (source === "local") {
+          openPdfDialog();
+        } else if (source === "drive") {
+          openGoogleDrivePicker();
+        }
+      } else if (currentAction === "download") {
+        if (source === "local") {
+          handleSavePdfLocal();
+        } else if (source === "drive") {
+          savePdfToDrive();
+        }
+      }
+    },
+    [
+      currentAction,
+      openPdfDialog,
+      openGoogleDrivePicker,
+      handleSavePdfLocal,
+      savePdfToDrive,
+    ]
+  );
+
+  return (
+    &lt;div className="w-1/2 bg-white p-4 rounded-2xl shadow-lg flex flex-col">
+      &lt;div className="flex justify-between items-center mb-2">
+        &lt;h2 className="text-lg font-medium">Visor de PDF&lt;/h2>
+        &lt;div className="flex gap-3">
+          &lt;button
+            onClick={() => {
+              setCurrentAction("upload");
+              setFileSelectionModalOpen(true);
+            }}
+            className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+          >
+            &lt;ArrowUpTrayIcon className="h-5 w-5" />
+            &lt;span>Cargar PDF&lt;/span>
+          &lt;/button>
+
+          &lt;button
+            onClick={() => {
+              setCurrentAction("download");
+              setFileSelectionModalOpen(true);
+            }}
+            className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+            disabled={!activePdfUrl}
+            title={!activePdfUrl ? "Carga un PDF para guardar" : ""}
+          >
+            &lt;ArrowDownTrayIcon className="h-5 w-5" />
+            &lt;span>Guardar PDF&lt;/span>
+          &lt;/button>
+        &lt;/div>
+        &lt;input
+          ref={pdfInputRef}
+          type="file"
+          accept="application/pdf"
+          onChange={handlePdfChange}
+          style={{ display: "none" }}
+        />
+      &lt;/div>
+
+      &lt;div className="flex overflow-x-auto border-b border-gray-200">
+        {pdfs.map((pdf) => (
+          &lt;div
+            key={pdf.url}
+            className={`flex items-center px-4 py-2 cursor-pointer border-r border-l border-t rounded-t-md text-sm whitespace-nowrap ${
+              activePdfUrl === pdf.url
+                ? "bg-white border-blue-500 text-blue-700"
+                : "bg-gray-100 border-gray-300 text-gray-600 hover:bg-gray-200"
+            }`}
+            onClick={() => handleTabClick(pdf.url)}
+          >
+            &lt;span>{pdf.name || "Sin nombre"}&lt;/span>
+            &lt;button
+              onClick={(e) => handleCloseTab(pdf.url, e)}
+              className="ml-2 text-gray-500 hover:text-gray-700 focus:outline-none"
+            >
+              &amp;times;
+            &lt;/button>
+          &lt;/div>
+        ))}
+        {pdfs.length === 0 &amp;&amp; (
+          &lt;div className="px-4 py-2 text-gray-500 text-sm">&lt;/div>
+        )}
+      &lt;/div>
+
+      {activePdfUrl ? (
+        &lt;iframe
+          key={activePdfUrl}
+          src={`/web/viewer.html?file=${encodeURIComponent(activePdfUrl)}`}
+          title="Visor PDF"
+          className="flex-1 rounded-md border mt-2"
+        />
+      ) : (
+        &lt;div className="flex-1 flex items-center justify-center text-gray-500">
+          No hay PDF seleccionado. Carga uno o selecciona una pestaña.
+        &lt;/div>
+      )}
+
+      {/* MODAL PARA SELECCIÓN DE ORIGEN/DESTINO DE ARCHIVOS */}
+      &lt;Transition appear show={fileSelectionModalOpen} as={React.Fragment}>
+        &lt;Dialog
+          as="div"
+          className="relative z-50"
+          onClose={() => setFileSelectionModalOpen(false)}
+        >
+          &lt;Transition.Child
+            as={React.Fragment}
+            enter="ease-out duration-300"
+            enterFrom="opacity-0"
+            enterTo="opacity-100"
+            leave="ease-in duration-200"
+            leaveFrom="opacity-100"
+            leaveTo="opacity-0"
+          >
+            &lt;div className="fixed inset-0 bg-black bg-opacity-50" />
+          &lt;/Transition.Child>
+
+          &lt;div className="fixed inset-0 overflow-y-auto">
+            &lt;div className="flex min-h-full items-center justify-center p-4 text-center">
+              &lt;Transition.Child
+                as={React.Fragment}
+                enter="ease-out duration-300"
+                enterFrom="opacity-0 scale-95"
+                enterTo="opacity-100 scale-100"
+                leave="ease-in duration-200"
+                leaveFrom="opacity-100 scale-100"
+                leaveTo="opacity-0 scale-95"
+              >
+                &lt;Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
+                  &lt;Dialog.Title
+                    as="h3"
+                    className="text-xl font-semibold leading-6 text-gray-900"
+                  >
+                    {currentAction === "upload"
+                      ? "Cargar PDF desde..."
+                      : "Guardar PDF en..."}
+                  &lt;/Dialog.Title>
+                  &lt;div className="mt-4 space-y-4">
+                    &lt;button
+                      onClick={() => handleActionSelection("local")}
+                      className="w-full flex items-center justify-center space-x-3 px-4 py-3 border border-gray-300 rounded-lg text-gray-800 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 transition"
+                    >
+                      &lt;FolderOpenIcon className="h-6 w-6 text-indigo-600" />
+                      &lt;span className="text-lg">Mi dispositivo&lt;/span>
+                    &lt;/button>
+
+                    &lt;button
+                      onClick={() => handleActionSelection("drive")}
+                      disabled={!googleAccessToken || !areGoogleApisReady}
+                      className={`w-full flex items-center justify-center space-x-3 px-4 py-3 border border-gray-300 rounded-lg text-gray-800 transition ${
+                        !googleAccessToken || !areGoogleApisReady
+                          ? "opacity-50 cursor-not-allowed"
+                          : "hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
+                      }`}
+                      title={
+                        !googleAccessToken
+                          ? "Inicia sesión con Google para usar Drive"
+                          : !areGoogleApisReady
+                          ? "Cargando APIs de Google Drive..."
+                          : ""
+                      }
+                    >
+                      {currentAction === "upload" ? (
+                        &lt;CloudArrowUpIcon className="h-6 w-6 text-indigo-600" />
+                      ) : (
+                        &lt;CloudArrowDownIcon className="h-6 w-6 text-indigo-600" />
+                      )}
+                      &lt;span className="text-lg">Google Drive&lt;/span>
+                    &lt;/button>
+                  &lt;/div>
+
+                  &lt;div className="mt-6 flex justify-end">
+                    &lt;button
+                      type="button"
+                      className="px-4 py-2 bg-gray-300 rounded-lg hover:bg-gray-400 transition"
+                      onClick={() => setFileSelectionModalOpen(false)}
+                    >
+                      Cancelar
+                    &lt;/button>
+                  &lt;/div>
+                &lt;/Dialog.Panel>
+              &lt;/Transition.Child>
+            &lt;/div>
+          &lt;/div>
+        &lt;/Dialog>
+      &lt;/Transition>
+
+      {/* PromptConfirmModal para nombrar archivos al guardar */}
+      &lt;PromptConfirmModal
+        isOpen={isPromptModalOpen}
+        onClose={() => {
+          setIsPromptModalOpen(false);
+        }}
+        onConfirm={promptModalConfig.onConfirm}
+        title={promptModalConfig.title}
+        message={promptModalConfig.message}
+        showInputField={promptModalConfig.showInputField}
+        inputPlaceholder={promptModalConfig.inputPlaceholder}
+        iconType={promptModalConfig.iconType}
+      />
+    &lt;/div>
+  );
+}
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html#AppSidebar">AppSidebar</a></li><li><a href="global.html#Footer">Footer</a></li><li><a href="global.html#Navbar">Navbar</a></li><li><a href="global.html#PrivateRoute">PrivateRoute</a></li><li><a href="global.html#ReferenceCard">ReferenceCard</a></li><li><a href="global.html#googleLogoSrc">googleLogoSrc</a></li><li><a href="global.html#logoSrc">logoSrc</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.4</a> on Sun Jun 08 2025 07:32:44 GMT+0200 (hora de verano de Europa central)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>
