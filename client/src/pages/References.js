@@ -4,41 +4,73 @@ import ReferencesListSection from "../components/ReferencesListSection";
 import UserProfile from "../components/UserProfile";
 import toast from "react-hot-toast";
 
-// Recibe el 'user' como prop de App.js (tal como lo corregimos en App.js)
-export default function References({ user }) {
-  // Usamos 'activeSection' para controlar qué se muestra, como en las versiones anteriores
-  const [activeSection, setActiveSection] = useState("references"); // 'references' o 'profile'
+/**
+ * @file Componente principal de la página de Referencias.
+ * @description Permite al usuario gestionar sus referencias bibliográficas y su perfil de usuario,
+ * alternando entre ambas secciones.
+ */
 
-  // El estado y la lógica de carga de userData ahora se harán condicionalmente
-  // dentro de este componente, usando el 'user' prop recibido de App.js
-  const [userData, setUserData] = useState(null); // Estado para los datos del usuario del backend
+/**
+ * Componente References.
+ * @param {object} props - Propiedades del componente.
+ * @param {object} props.user - Objeto de usuario autenticado, pasado desde `App.js`. Contiene información básica del usuario (decodificada del JWT).
+ * @returns {JSX.Element} El componente de la página de referencias y perfil.
+ */
+export default function References({ user }) {
+  /**
+   * Estado para controlar la sección activa mostrada en la página.
+   * Puede ser 'references' para la lista de referencias o 'profile' para el perfil de usuario.
+   * @type {'references' | 'profile'}
+   */
+  const [activeSection, setActiveSection] = useState("references");
+
+  /**
+   * Estado para almacenar los datos detallados del usuario obtenidos del backend.
+   * Solo se carga cuando la sección activa es 'profile'.
+   * @type {object | null}
+   */
+  const [userData, setUserData] = useState(null);
+
+  /**
+   * Estado para indicar si los datos detallados del usuario están siendo cargados.
+   * @type {boolean}
+   */
   const [loadingUser, setLoadingUser] = useState(true);
+
+  /**
+   * Estado para almacenar cualquier error ocurrido durante la carga de los datos del usuario.
+   * @type {string | null}
+   */
   const [errorUser, setErrorUser] = useState(null);
 
-  // Función para obtener los datos del usuario del backend
-  // Este useEffect solo se ejecuta si la sección activa es 'profile'
-  // Y si user (prop de App.js) es válido y aún no tenemos userData.
+  /**
+   * Hook de efecto para cargar los datos detallados del usuario desde el backend.
+   * Se ejecuta solo si la `activeSection` es 'profile' y los `userData` no han sido cargados
+   * o si el `user` prop (desde `App.js`) ha cambiado.
+   */
   useEffect(() => {
-    // Si la sección NO es 'profile', no necesitamos cargar datos adicionales del usuario.
-    // O si ya tenemos userData y no hay cambios en el user prop, no volvemos a cargar.
     if (
       activeSection !== "profile" ||
       (userData && user && userData.id === user.id)
     ) {
-      setLoadingUser(false); // No necesitamos cargar si no estamos en perfil o ya cargamos
+      setLoadingUser(false);
       return;
     }
 
+    /**
+     * Función asincrónica para obtener los datos del usuario del backend.
+     * @returns {Promise<void>}
+     */
     const fetchUserData = async () => {
       setLoadingUser(true);
-      setErrorUser(null); // Limpiar errores previos
+      setErrorUser(null);
       try {
         const token = localStorage.getItem("token");
         if (!token) {
           throw new Error("No hay token de autenticación.");
         }
 
-        const res = await fetch("http://localhost:5000/api/users/me", {
+        const res = await fetch("/api/users/me", {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -52,7 +84,7 @@ export default function References({ user }) {
         }
 
         const data = await res.json();
-        setUserData(data); // Almacena los datos del usuario
+        setUserData(data);
       } catch (err) {
         console.error("Error fetching user data:", err);
         setErrorUser(err.message);
@@ -62,11 +94,15 @@ export default function References({ user }) {
     };
 
     fetchUserData();
-  }, [activeSection, user, userData]); // Depende de 'activeSection' para disparar la carga cuando se cambia a perfil,
-  // de 'user' (el prop de App.js) para re-fetch si cambia la sesión,
-  // y de 'userData' para evitar bucles de carga si ya tenemos los datos.
+  }, [activeSection, user, userData]);
 
-  // Función para actualizar los datos del usuario en el backend
+  /**
+   * Maneja la actualización de los datos del perfil del usuario en el backend.
+   * Envía los campos actualizados al servidor y actualiza el estado `userData` localmente.
+   * Muestra un toast de éxito o error.
+   * @param {object} updatedFields - Un objeto con los campos del usuario a actualizar.
+   * @returns {Promise<void>}
+   */
   const handleUpdateUser = async (updatedFields) => {
     try {
       const token = localStorage.getItem("token");
@@ -74,7 +110,7 @@ export default function References({ user }) {
         throw new Error("No hay token de autenticación para actualizar.");
       }
 
-      const res = await fetch("http://localhost:5000/api/users/me", {
+      const res = await fetch("/api/users/me", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -99,19 +135,17 @@ export default function References({ user }) {
 
   return (
     <div className="flex h-screen p-6 pt-24 bg-gray-50 gap-6">
-      {/* Sidebar - Visible solo en el componente References */}
       <AppSidebar
-        activeSection={activeSection} // <-- Pasa 'activeSection'
-        setActiveSection={setActiveSection} // <-- Pasa 'setActiveSection'
+        activeSection={activeSection}
+        setActiveSection={setActiveSection}
       />
 
-      {/* Contenido principal: Referencias o Perfil de Usuario */}
       <div className="flex-1 p-4 md:p-6 overflow-y-auto bg-gray-100 gray:bg-gray-100">
-        {activeSection === "references" ? ( // Usa 'activeSection' para la renderización condicional
+        {activeSection === "references" ? (
           <ReferencesListSection />
         ) : (
           <UserProfile
-            user={userData} // Pasa los datos del usuario obtenidos del backend
+            user={userData}
             loading={loadingUser}
             error={errorUser}
             onUpdateUser={handleUpdateUser}

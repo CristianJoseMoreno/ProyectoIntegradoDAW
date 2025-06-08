@@ -1,4 +1,3 @@
-// src/components/ReferenceFormModal.js
 import React, { useState, useEffect } from "react";
 import { Dialog } from "@headlessui/react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -6,9 +5,18 @@ import { faSpinner } from "@fortawesome/free-solid-svg-icons";
 import toast from "react-hot-toast";
 
 /**
- * Mapeo básico de IDs de estilo a nombres legibles.
- * Puedes expandir esto con más estilos CSL que soportes tu backend.
- * Asegúrate de que los 'value' aquí coincidan con los IDs que tu backend y el motor CSL usan.
+ * @file Componente ReferenceFormModal.
+ * @description Modal reutilizable para añadir o editar referencias bibliográficas.
+ * Permite al usuario introducir metadatos de la referencia, seleccionar un estilo de citación
+ * de entre sus estilos favoritos, previsualizar la citación (opcionalmente) y guardar
+ * la referencia en el backend. Si se usa en el contexto de un editor de texto,
+ * también puede insertar la referencia formateada directamente.
+ */
+
+/**
+ * Mapeo básico de IDs de estilo CSL a nombres legibles para la interfaz de usuario.
+ * Esta lista debe coincidir con los estilos que el backend y el motor CSL pueden procesar.
+ * @type {Object.<string, string>}
  */
 const CSL_STYLE_MAP = {
   apa: "APA 7th edition",
@@ -16,21 +24,19 @@ const CSL_STYLE_MAP = {
   "chicago-fullnote-bibliography":
     "Chicago Manual of Style 17th edition (note, with bibliography)",
   ieee: "IEEE (Institute of Electrical and Electronics Engineers)",
-  // Añade más estilos aquí según los que tu backend reconozca y los usuarios configuren
+  // Ampliar con más estilos CSL según sea necesario
 };
 
 /**
- * Modal reutilizable para añadir o editar referencias.
- * Gestiona el estado del formulario, la obtención de estilos favoritos,
- * la interacción con el backend para guardar y formatear la referencia.
- *
- * @param {object} props
- * @param {boolean} props.isOpen - Controla la visibilidad del modal.
- * @param {function} props.onClose - Callback para cerrar el modal.
- * @param {function} props.onSaveSuccess - Callback al componente padre después de un guardado exitoso (ej. para actualizar la lista de referencias).
- * @param {object|null} [props.referenceToEdit=null] - El objeto de referencia si está en modo edición.
- * @param {boolean} [props.forTextEditor=false] - True si el modal se abre desde TextEditor, habilitando la inserción de texto.
- * @param {function} [props.onInsertFormattedText] - Callback para insertar texto formateado en el editor (solo si forTextEditor es true).
+ * Modal para gestionar el formulario de referencias.
+ * @param {object} props - Propiedades del componente.
+ * @param {boolean} props.isOpen - Si el modal está abierto.
+ * @param {function(): void} props.onClose - Callback para cerrar el modal.
+ * @param {function(): void} props.onSaveSuccess - Callback después de un guardado exitoso.
+ * @param {object | null} [props.referenceToEdit=null] - Objeto de referencia para edición, si aplica.
+ * @param {boolean} [props.forTextEditor=false] - Indica si el modal se usa desde el TextEditor.
+ * @param {function(string): void} [props.onInsertFormattedText] - Callback para insertar texto en el editor, si `forTextEditor` es `true`.
+ * @returns {JSX.Element} El componente del modal del formulario de referencia.
  */
 function ReferenceFormModal({
   isOpen,
@@ -40,6 +46,11 @@ function ReferenceFormModal({
   forTextEditor = false,
   onInsertFormattedText,
 }) {
+  /**
+   * Estado para almacenar los metadatos de la referencia del formulario.
+   * Inicializa con valores predeterminados o con los datos de `referenceToEdit` si está en modo edición.
+   * @type {object}
+   */
   const [metadata, setMetadata] = useState({
     author: "",
     title: "",
@@ -48,26 +59,62 @@ function ReferenceFormModal({
     pages: "",
     publisher: "",
     URL: "",
-    notes: "", // Campo de notas
-    type: "article-journal", // CSL default
+    notes: "",
+    type: "article-journal",
   });
-  const [selectedStyle, setSelectedStyle] = useState("");
-  const [favoriteStyles, setFavoriteStyles] = useState([]);
-  const [loadingStyles, setLoadingStyles] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState(null);
-  const [formattedCitationPreview, setFormattedCitationPreview] = useState(""); // Nuevo estado para previsualización
 
+  /**
+   * Estado para el estilo CSL seleccionado actualmente en el formulario.
+   * @type {string}
+   */
+  const [selectedStyle, setSelectedStyle] = useState("");
+
+  /**
+   * Estado para almacenar la lista de estilos CSL favoritos del usuario, cargados desde su perfil.
+   * @type {Array<{value: string, label: string}>}
+   */
+  const [favoriteStyles, setFavoriteStyles] = useState([]);
+
+  /**
+   * Estado para indicar si los estilos favoritos están cargando.
+   * @type {boolean}
+   */
+  const [loadingStyles, setLoadingStyles] = useState(true);
+
+  /**
+   * Estado para indicar si la operación de guardado está en curso.
+   * @type {boolean}
+   */
+  const [isSaving, setIsSaving] = useState(false);
+
+  /**
+   * Estado para almacenar cualquier mensaje de error relacionado con el formulario o las operaciones.
+   * @type {string | null}
+   */
+  const [error, setError] = useState(null);
+
+  /**
+   * Estado para la previsualización de la cita formateada en HTML.
+   * @type {string}
+   */
+  const [formattedCitationPreview, setFormattedCitationPreview] = useState("");
+
+  /**
+   * Función auxiliar para obtener el token de autenticación del localStorage.
+   * @returns {string | null} El token JWT.
+   */
   const getToken = () => localStorage.getItem("token");
 
-  // Effect para cargar los estilos favoritos del usuario al abrir el modal
+  /**
+   * Hook de efecto para inicializar el formulario y cargar los estilos favoritos
+   * cuando el modal se abre o cuando `referenceToEdit` cambia.
+   */
   useEffect(() => {
     if (isOpen) {
-      fetchFavoriteStyles(); // Siempre obtener estilos cuando el modal se abre
-      setError(null); // Limpiar errores previos
-      setFormattedCitationPreview(""); // Limpiar previsualización al abrir
+      fetchFavoriteStyles();
+      setError(null);
+      setFormattedCitationPreview("");
 
-      // Rellenar formulario si se está editando una referencia
       if (referenceToEdit) {
         setMetadata({
           author: referenceToEdit.citationData?.author
@@ -88,9 +135,9 @@ function ReferenceFormModal({
           notes: referenceToEdit.notes || "",
           type: referenceToEdit.citationData?.type || "article-journal",
         });
-        setSelectedStyle(referenceToEdit.formattingStyle || ""); // Se establecerá el valor por defecto después de la carga
+        // El selectedStyle se establecerá en el siguiente useEffect cuando los estilos favoritos estén cargados
+        setSelectedStyle(referenceToEdit.formattingStyle || "");
       } else {
-        // Resetear formulario para una nueva referencia
         setMetadata({
           author: "",
           title: "",
@@ -105,12 +152,14 @@ function ReferenceFormModal({
         setSelectedStyle(""); // Se establecerá el primer favorito después de la carga
       }
     }
-  }, [isOpen, referenceToEdit]); // Dependencias: isOpen y referenceToEdit
+  }, [isOpen, referenceToEdit]);
 
-  // Effect para establecer el estilo por defecto una vez que los estilos favoritos estén cargados
+  /**
+   * Hook de efecto para establecer el estilo de citación predeterminado
+   * una vez que los estilos favoritos se han cargado.
+   */
   useEffect(() => {
     if (isOpen && favoriteStyles.length > 0) {
-      // Si estamos editando y hay un estilo guardado, usarlo si está entre los favoritos
       if (
         referenceToEdit &&
         referenceToEdit.formattingStyle &&
@@ -121,15 +170,16 @@ function ReferenceFormModal({
         selectedStyle === "" ||
         !favoriteStyles.some((s) => s.value === selectedStyle)
       ) {
-        // De lo contrario, o si el estilo actual no es válido, usar el primer estilo favorito como predeterminado
         setSelectedStyle(favoriteStyles[0].value);
       }
     }
   }, [favoriteStyles, isOpen, referenceToEdit, selectedStyle]);
 
-  // Effect para formatear la cita en tiempo real (o al cargar para edición)
+  /**
+   * Hook de efecto para formatear la cita para previsualización en tiempo real.
+   * Se aplica un "debounce" para optimizar el rendimiento.
+   */
   useEffect(() => {
-    // Solo si el modal está abierto, hay metadatos mínimos y un estilo seleccionado, Y NO estamos en TextEditor
     if (
       isOpen &&
       (metadata.title || metadata.author) &&
@@ -138,7 +188,7 @@ function ReferenceFormModal({
     ) {
       const delayDebounceFn = setTimeout(() => {
         formatCitationForPreview();
-      }, 500); // Pequeño debounce para no formatear en cada pulsación de tecla
+      }, 500);
 
       return () => clearTimeout(delayDebounceFn);
     } else if (isOpen && forTextEditor) {
@@ -146,10 +196,14 @@ function ReferenceFormModal({
         "La previsualización no está disponible en este modo."
       );
     } else {
-      setFormattedCitationPreview(""); // Limpiar si no hay datos o modal cerrado
+      setFormattedCitationPreview("");
     }
-  }, [metadata, selectedStyle, isOpen, forTextEditor]); // Dependencias para el efecto de previsualización
+  }, [metadata, selectedStyle, isOpen, forTextEditor]);
 
+  /**
+   * Carga los estilos de citación preferidos del usuario desde su perfil.
+   * @returns {Promise<void>}
+   */
   const fetchFavoriteStyles = async () => {
     setLoadingStyles(true);
     setError(null);
@@ -161,7 +215,7 @@ function ReferenceFormModal({
         );
       }
 
-      const response = await fetch("http://localhost:5000/api/users/me", {
+      const response = await fetch("/api/users/me", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -213,7 +267,12 @@ function ReferenceFormModal({
     }
   };
 
-  // Helper para parsear la cadena de autores (ej. "Apellido,Nombre;Apellido2,Nombre2") a formato CSL
+  /**
+   * Parsea una cadena de autores (ej. "Apellido,Nombre;Apellido2,Nombre2")
+   * a un array de objetos con formato CSL-JSON.
+   * @param {string} authorString - La cadena de autores.
+   * @returns {Array<object>} Un array de objetos de autor en formato CSL.
+   */
   const parseAuthors = (authorString) => {
     if (!authorString) return [];
     return authorString
@@ -228,13 +287,15 @@ function ReferenceFormModal({
       .filter((a) => a.family || a.given);
   };
 
-  // Helper para construir el objeto CSL-JSON
+  /**
+   * Construye un objeto CSL-JSON a partir de los metadatos actuales del formulario.
+   * @returns {object} El objeto CSL-JSON de la referencia.
+   */
   const buildCSL = () => {
     const item = {
       type: metadata.type,
       title: metadata.title,
       author: parseAuthors(metadata.author),
-      // Asegurarse de que 'year' es un número antes de pasarlo a date-parts
       issued: metadata.year
         ? { "date-parts": [[parseInt(metadata.year, 10)]] }
         : undefined,
@@ -246,6 +307,11 @@ function ReferenceFormModal({
     return item;
   };
 
+  /**
+   * Solicita al backend el formato de la cita para previsualización.
+   * Actualiza el estado `formattedCitationPreview` con el HTML resultante.
+   * @returns {Promise<void>}
+   */
   const formatCitationForPreview = async () => {
     const cslJson = buildCSL();
 
@@ -265,7 +331,7 @@ function ReferenceFormModal({
         throw new Error("No autenticado. Por favor, inicia sesión.");
       }
 
-      const res = await fetch("http://localhost:5000/api/citation/format", {
+      const res = await fetch("/api/citation/format", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -304,6 +370,10 @@ function ReferenceFormModal({
     }
   };
 
+  /**
+   * Maneja el proceso de guardar/actualizar la referencia y, opcionalmente, formatearla e insertarla en un editor.
+   * @returns {Promise<void>}
+   */
   const handleSaveAndFormat = async () => {
     setIsSaving(true);
     setError(null);
@@ -338,8 +408,8 @@ function ReferenceFormModal({
       // --- 1. Guardar/Actualizar Referencia en la Base de Datos ---
       let saveResponse;
       const saveUrl = referenceToEdit
-        ? `http://localhost:5000/api/references/${referenceToEdit._id}`
-        : "http://localhost:5000/api/references";
+        ? `/api/references/${referenceToEdit._id}`
+        : "/api/references";
       const saveMethod = referenceToEdit ? "PUT" : "POST";
 
       saveResponse = await fetch(saveUrl, {
@@ -361,21 +431,18 @@ function ReferenceFormModal({
 
       // --- 2. Si está en el contexto del Text Editor, formatear e insertar texto ---
       if (forTextEditor && onInsertFormattedText) {
-        const formatRes = await fetch(
-          "http://localhost:5000/api/citation/format",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-              metadata: cslJson,
-              style: selectedStyle,
-              output: "html",
-            }),
-          }
-        );
+        const formatRes = await fetch("/api/citation/format", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            metadata: cslJson,
+            style: selectedStyle,
+            output: "html",
+          }),
+        });
 
         const formatTextResponse = await formatRes.text();
         if (!formatRes.ok) {
@@ -404,37 +471,38 @@ function ReferenceFormModal({
           } e insertada en el editor.`
         );
       } else {
-        // Toast para cuando solo se guarda (no se inserta en el editor)
         toast.success(
           `Referencia ${referenceToEdit ? "actualizada" : "creada"} con éxito.`
         );
       }
 
       onSaveSuccess();
-      onClose(); // Cerrar el modal
+      onClose();
     } catch (err) {
       console.error("Error en handleSaveAndFormat:", err);
-      setError(err.message); // Asegúrate de que el error se establezca para mostrarlo si es necesario
+      setError(err.message);
       toast.error(`Error al guardar referencia: ${err.message}`);
     } finally {
       setIsSaving(false);
     }
   };
 
+  /**
+   * Maneja los cambios en los campos de entrada del formulario,
+   * aplicando validaciones específicas para 'year' y 'pages'.
+   * @param {React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>} e - El evento de cambio.
+   * @returns {void}
+   */
   const handleChange = (e) => {
     const { name, value } = e.target;
 
     if (name === "year") {
-      // Permitir solo dígitos (0-9). Elimina cualquier otra cosa.
-      const filteredValue = value.replace(/[^0-9]/g, "");
+      const filteredValue = value.replace(/[^0-9]/g, ""); // Solo dígitos
       setMetadata((prev) => ({ ...prev, [name]: filteredValue }));
     } else if (name === "pages") {
-      // Permitir dígitos (0-9), guiones (-), comas (,), puntos (.), espacios ( ), y las letras 'p'/'P'.
-      // Elimina cualquier otro carácter.
-      const filteredValue = value.replace(/[^0-9pP\-,.\s]/g, "");
+      const filteredValue = value.replace(/[^0-9pP\-,.\s]/g, ""); // Dígitos, p/P, -, ,, ., espacios
       setMetadata((prev) => ({ ...prev, [name]: filteredValue }));
     } else {
-      // Para todos los demás campos, simplemente actualiza el valor.
       setMetadata((prev) => ({ ...prev, [name]: value }));
     }
   };
@@ -453,8 +521,9 @@ function ReferenceFormModal({
         {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
 
         <div className="space-y-3">
+          {/* Campos de entrada de metadatos */}
           <input
-            type="text" // Cambiado a type="text" para control manual de la entrada
+            type="text"
             name="author"
             placeholder="Autor(es): Apellido,Nombre;Apellido2,Nombre2"
             value={metadata.author}
@@ -470,7 +539,7 @@ function ReferenceFormModal({
             className="w-full border p-2 rounded-lg focus:ring-blue-500 focus:border-blue-500"
           />
           <input
-            type="text" // Cambiado a type="text" para control manual de la entrada
+            type="text"
             name="year"
             placeholder="Año (solo números)"
             value={metadata.year}
@@ -486,7 +555,7 @@ function ReferenceFormModal({
             className="w-full border p-2 rounded-lg focus:ring-blue-500 focus:border-blue-500"
           />
           <input
-            type="text" // Cambiado a type="text" para control manual de la entrada (permite -, p, etc.)
+            type="text"
             name="pages"
             placeholder="Páginas (ej. 123-145 o p. x–y)"
             value={metadata.pages}
@@ -518,7 +587,7 @@ function ReferenceFormModal({
             className="w-full border p-2 rounded-lg focus:ring-blue-500 focus:border-blue-500 resize-y"
           />
 
-          {/* Tipo de Referencia (CSL Type) */}
+          {/* Selector de Tipo de Referencia (CSL Type) */}
           <div>
             <label
               htmlFor="type-select"

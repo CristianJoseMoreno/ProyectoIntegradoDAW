@@ -4,8 +4,20 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faLinkedinIn } from "@fortawesome/free-brands-svg-icons";
 import { faEnvelope } from "@fortawesome/free-solid-svg-icons";
 
+/**
+ * @constant {string} logoSrc - La ruta al logotipo principal de la aplicación, utilizado en el footer.
+ */
 const logoSrc = `${process.env.PUBLIC_URL}/logo.png`;
 
+/**
+ * Componente Footer.
+ * Representa el pie de página de la aplicación. Incluye información de copyright, el logo,
+ * enlaces de navegación y enlaces a redes sociales.
+ *
+ * @param {object} props - Las propiedades del componente.
+ * @param {function(React.MouseEvent<HTMLAnchorElement>, string): void} props.onNavLinkClick - Callback que se ejecuta cuando se hace clic en un enlace de navegación interno (ej. "Sobre Nosotros"). Permite el desplazamiento suave a secciones.
+ * @returns {JSX.Element} El componente del pie de página.
+ */
 function Footer({ onNavLinkClick }) {
   return React.createElement(
     "div",
@@ -13,7 +25,6 @@ function Footer({ onNavLinkClick }) {
     React.createElement(
       "footer",
       { className: "w-full max-w-7xl mx-auto px-6 md:px-10 text-sm" },
-
       React.createElement("div", {
         className: "mx-auto w-3/5 border-t border-gray-300 mb-8",
       }),
@@ -23,7 +34,7 @@ function Footer({ onNavLinkClick }) {
           className:
             "relative flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0",
         },
-        // Copyright
+        // Sección de Copyright
         React.createElement(
           "div",
           {
@@ -36,7 +47,7 @@ function Footer({ onNavLinkClick }) {
             `© ${new Date().getFullYear()} RefMind`
           )
         ),
-        // Logo
+        // Sección del Logo
         React.createElement(
           "div",
           {
@@ -60,14 +71,14 @@ function Footer({ onNavLinkClick }) {
             })
           )
         ),
-        // Links + Redes Sociales
+        // Sección de Enlaces y Redes Sociales
         React.createElement(
           "div",
           {
             className:
               "flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-8 order-2 md:order-3 md:ml-auto",
           },
-          // Enlaces
+          // Enlaces de navegación
           React.createElement(
             "div",
             { className: "flex space-x-6" },
@@ -109,7 +120,7 @@ function Footer({ onNavLinkClick }) {
               "Soporte"
             )
           ),
-          // Redes
+          // Enlaces a Redes Sociales
           React.createElement(
             "div",
             { className: "flex space-x-4" },

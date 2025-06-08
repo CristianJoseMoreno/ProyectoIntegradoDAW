@@ -1,30 +1,71 @@
 import React, { useState, useRef } from "react";
 import { Link } from "react-router-dom";
 
+/**
+ * @constant {string} logoSrc - La ruta al logotipo principal de la aplicación.
+ */
 const logoSrc = `${process.env.PUBLIC_URL}/logo.png`;
+
+/**
+ * @constant {string} googleLogoSrc - La ruta al logotipo de Google para el botón de inicio de sesión.
+ */
 const googleLogoSrc = `${process.env.PUBLIC_URL}/logo_google.png`;
 
+/**
+ * Componente Navbar.
+ * La barra de navegación principal de la aplicación. Muestra enlaces de navegación,
+ * información del usuario si está autenticado (con un menú desplegable), o un botón de inicio de sesión.
+ *
+ * @param {object} props - Las propiedades del componente.
+ * @param {object | null} props.user - Objeto de usuario autenticado o `null` si no hay usuario. Contiene `name` y `picture` (URL de la imagen de perfil).
+ * @param {function(): void} props.handleLogout - Callback para cerrar la sesión del usuario.
+ * @param {function(): void} props.handleLoginClick - Callback para iniciar el proceso de inicio de sesión (típicamente con Google).
+ * @returns {JSX.Element} El componente de la barra de navegación.
+ */
 const Navbar = ({ user, handleLogout, handleLoginClick }) => {
+  /**
+   * Estado para controlar la apertura y cierre del menú desplegable del perfil.
+   * @type {boolean}
+   */
   const [menuOpen, setMenuOpen] = useState(false);
+
+  /**
+   * Ref para el elemento del menú desplegable del perfil. Se usa para detectar clics fuera.
+   * @type {React.RefObject<HTMLDivElement>}
+   */
   const menuRef = useRef(null);
+
+  /**
+   * Estado para controlar si hubo un error al cargar la imagen de perfil del usuario (ej. de Google).
+   * @type {boolean}
+   */
   const [profileImageError, setProfileImageError] = useState(false);
 
+  /**
+   * Manejador interno para el cierre de sesión que también cierra el menú desplegable.
+   * @type {function(): void}
+   */
   const internalHandleLogout = () => {
     handleLogout();
     setMenuOpen(false);
   };
 
-  // Restablecer el estado de error de la imagen si el usuario cambia (o al iniciar sesión)
+  /**
+   * Hook de efecto para restablecer el estado de error de la imagen de perfil
+   * cuando el objeto `user` cambia (ej. al iniciar o cerrar sesión).
+   */
   React.useEffect(() => {
-    setProfileImageError(false); // Resetea el error cuando el user cambia
+    setProfileImageError(false);
   }, [user]);
 
-  // URL para el fallback de la imagen de perfil
-  const defaultProfileImageUrl = "https://via.placeholder.com/40?text=C"; // O alguna imagen de perfil por defecto tuya
+  /**
+   * URL de la imagen de perfil de fallback por defecto, usada si `user.picture` no está disponible o falla.
+   * @type {string}
+   */
+  const defaultProfileImageUrl = "https://via.placeholder.com/40?text=C";
 
   return (
     <nav className="fixed z-30 h-20 w-full px-5 sm:px-2 md:px-3 md:py-1 lg:px-20 flex items-center justify-between bg-white text-gray-600 navbar-expand-lg shadow-lg">
-      {/* Logo */}
       <div>
         <Link to="/" className="flex items-center">
           <img src={logoSrc} alt="RefMind Logo" className="h-21 w-28" />
@@ -47,9 +88,7 @@ const Navbar = ({ user, handleLogout, handleLoginClick }) => {
               Gestionar Referencias
             </Link>
 
-            {/* Perfil y menú */}
             <div className="relative ml-4" ref={menuRef}>
-              {/* Lógica mejorada para la imagen de perfil */}
               {user?.picture && !profileImageError ? (
                 <img
                   src={user.picture}
@@ -57,7 +96,6 @@ const Navbar = ({ user, handleLogout, handleLoginClick }) => {
                   className="w-9 h-9 rounded-full cursor-pointer border hover:scale-105 transition-transform"
                   onClick={() => setMenuOpen((prev) => !prev)}
                   onError={(e) => {
-                    // Si la imagen de Google falla, establece el error a true
                     console.error(
                       "Error al cargar la imagen de perfil de Google:",
                       e
@@ -66,7 +104,6 @@ const Navbar = ({ user, handleLogout, handleLoginClick }) => {
                   }}
                 />
               ) : (
-                // Fallback: si no hay imagen de Google o si la carga falló
                 <div
                   className="w-9 h-9 rounded-full cursor-pointer border hover:scale-105 transition-transform bg-gray-300 flex items-center justify-center text-white text-sm font-semibold"
                   onClick={() => setMenuOpen((prev) => !prev)}

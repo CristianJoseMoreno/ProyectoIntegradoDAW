@@ -1,63 +1,128 @@
 import React, { useState, useEffect } from "react";
 
-function UserProfile({ user, loading, error, onUpdateUser }) {
-  const [userName, setUserName] = useState("");
-  const [userTitle] = useState("Team Manager");
-  const [userLocation] = useState("Arizona, United States");
-  const [preferredCitationStyles, setPreferredCitationStyles] = useState([]); // Ahora es un array para manejar los estilos individualmente
-  const [isEditingPersonalInfo, setIsEditingPersonalInfo] = useState(false);
-  const [isEditingPreferences, setIsEditingPreferences] = useState(false);
-  const [showAddFormatModal, setShowAddFormatModal] = useState(false);
-  const [availableCslStyles, setAvailableCslStyles] = useState([]); // Nuevo estado para los estilos CSL disponibles
-  const [selectedCslStyle, setSelectedCslStyle] = useState(""); // Nuevo estado para el estilo CSL seleccionado en la modal
+/**
+ * @file Componente UserProfile.
+ * @description Muestra y permite la edición del perfil de usuario, incluyendo información personal
+ * y preferencias de estilos de citación. Permite añadir y eliminar estilos CSL preferidos
+ * mediante una modal que carga estilos disponibles desde el backend.
+ */
 
+/**
+ * Componente UserProfile.
+ * @param {object} props - Propiedades del componente.
+ * @param {object | null} props.user - Objeto de usuario con sus datos.
+ * @param {boolean} props.loading - Indica si los datos del usuario están cargando.
+ * @param {string | null} props.error - Mensaje de error si la carga del usuario falla.
+ * @param {function(object): Promise<void>} props.onUpdateUser - Función para enviar las actualizaciones del usuario al backend.
+ * @returns {JSX.Element} El componente del perfil de usuario.
+ */
+function UserProfile({ user, loading, error, onUpdateUser }) {
+  /**
+   * Estado para el nombre del usuario, editable.
+   * @type {string}
+   */
+  const [userName, setUserName] = useState("");
+
+  /**
+   * Estado para el título del usuario.
+   * @type {string}
+   */
+  const [userTitle] = useState("Estudiante");
+
+  /**
+   * Estado para la ubicación del usuario, fijo para este ejemplo.
+   * @type {string}
+   */
+  const [userLocation] = useState("Sevilla,España");
+
+  /**
+   * Estado para los estilos de citación preferidos por el usuario, un array de strings.
+   * @type {Array<string>}
+   */
+  const [preferredCitationStyles, setPreferredCitationStyles] = useState([]);
+
+  /**
+   * Estado para controlar si la sección de información personal está en modo de edición.
+   * @type {boolean}
+   */
+  const [isEditingPersonalInfo, setIsEditingPersonalInfo] = useState(false);
+
+  /**
+   * Estado para controlar si la sección de preferencias está en modo de edición.
+   * @type {boolean}
+   */
+  const [isEditingPreferences, setIsEditingPreferences] = useState(false);
+
+  /**
+   * Estado para controlar la visibilidad de la modal para añadir formatos CSL.
+   * @type {boolean}
+   */
+  const [showAddFormatModal, setShowAddFormatModal] = useState(false);
+
+  /**
+   * Estado para almacenar la lista de estilos CSL disponibles para selección, cargados desde el backend.
+   * Cada estilo es un objeto { label: string, value: string }.
+   * @type {Array<{label: string, value: string}>}
+   */
+  const [availableCslStyles, setAvailableCslStyles] = useState([]);
+
+  /**
+   * Estado para almacenar el estilo CSL seleccionado en la modal de añadir formato.
+   * @type {string}
+   */
+  const [selectedCslStyle, setSelectedCslStyle] = useState("");
+
+  /**
+   * Hook de efecto para inicializar los estados `userName` y `preferredCitationStyles`
+   * cuando el prop `user` cambia.
+   */
   useEffect(() => {
     if (user) {
       setUserName(user.name || "");
-      // Asegúrate de que user.preferredCitationStyles sea un array. Si es null/undefined, inicializa como array vacío.
       setPreferredCitationStyles(user.preferredCitationStyles || []);
     }
   }, [user]);
 
-  // Efecto para cargar los estilos CSL disponibles cuando la modal se abre
-  // En UserProfile.js, dentro del useEffect que se activa con showAddFormatModal
+  /**
+   * Hook de efecto para cargar los estilos CSL disponibles desde el backend
+   * cuando la modal `showAddFormatModal` se abre.
+   */
   useEffect(() => {
     if (showAddFormatModal) {
+      /**
+       * Función asincrónica para obtener los estilos CSL disponibles.
+       * @returns {Promise<void>}
+       */
       const fetchCslStyles = async () => {
         try {
-          console.log(
-            "Intentando cargar estilos CSL desde /api/citation/styles"
-          );
           const response = await fetch("/api/citation/styles");
 
-          console.log("Respuesta del fetch:", response); // Revisa el objeto Response
-
           if (!response.ok) {
-            // Si la respuesta no es OK, intenta leer el texto para ver si hay un error HTTP
             const errorText = await response.text();
-            console.error("Respuesta no OK:", response.status, errorText);
             throw new Error(
               `Error al cargar los estilos CSL disponibles: ${response.status} - ${errorText}`
             );
           }
 
-          // Intenta clonar la respuesta antes de .json() para poder leerla dos veces (si fuera necesario)
-          const responseClone = response.clone();
           const data = await response.json();
-          console.log("Datos CSL recibidos (JSON):", data); // Verifica que los datos son los esperados
-
           setAvailableCslStyles(data.styles);
           if (data.styles.length > 0) {
             setSelectedCslStyle(data.styles[0].value);
           }
         } catch (err) {
-          console.error("Error fetching CSL styles:", err); // Este es el error que ya ves
+          console.error("Error fetching CSL styles:", err);
         }
       };
       fetchCslStyles();
     }
   }, [showAddFormatModal]);
 
+  /**
+   * Maneja el guardado de los cambios en una sección específica (información personal o preferencias).
+   * @param {React.MouseEvent} e - El evento de clic del ratón.
+   * @param {'personalInfo' | 'preferences'} section - La sección que se va a guardar.
+   * @returns {Promise<void>}
+   */
   const handleSave = async (e, section) => {
     e.preventDefault();
     let updatedFields = {};
@@ -68,22 +133,35 @@ function UserProfile({ user, loading, error, onUpdateUser }) {
       setIsEditingPersonalInfo(false);
     } else if (section === "preferences") {
       updatedFields = {
-        preferredCitationStyles: preferredCitationStyles, // Envía el array directamente
+        preferredCitationStyles: preferredCitationStyles,
       };
       await onUpdateUser(updatedFields);
       setIsEditingPreferences(false);
     }
   };
 
+  /**
+   * Abre la modal para añadir un nuevo estilo de citación CSL.
+   * @returns {void}
+   */
   const handleOpenAddFormatModal = () => {
     setShowAddFormatModal(true);
   };
 
+  /**
+   * Cierra la modal para añadir un nuevo estilo de citación CSL y resetea la selección.
+   * @returns {void}
+   */
   const handleCloseAddFormatModal = () => {
     setShowAddFormatModal(false);
-    setSelectedCslStyle(""); // Resetea la selección al cerrar
+    setSelectedCslStyle("");
   };
 
+  /**
+   * Añade el estilo CSL seleccionado a la lista de estilos preferidos.
+   * Solo añade si hay una selección y el estilo no está ya en la lista.
+   * @returns {void}
+   */
   const handleAddCslStyle = () => {
     if (
       selectedCslStyle &&
@@ -93,17 +171,23 @@ function UserProfile({ user, loading, error, onUpdateUser }) {
         ...prevStyles,
         selectedCslStyle,
       ]);
-      setShowAddFormatModal(false); // Cierra la modal después de añadir
-      setSelectedCslStyle(""); // Resetea la selección
+      setShowAddFormatModal(false);
+      setSelectedCslStyle("");
     }
   };
 
+  /**
+   * Elimina un estilo CSL de la lista de estilos preferidos.
+   * @param {string} styleToRemove - El nombre del estilo a eliminar.
+   * @returns {void}
+   */
   const handleRemoveCslStyle = (styleToRemove) => {
     setPreferredCitationStyles((prevStyles) =>
       prevStyles.filter((style) => style !== styleToRemove)
     );
   };
 
+  // --- Renderizado Condicional de Estados ---
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full text-gray-600">
@@ -185,7 +269,6 @@ function UserProfile({ user, loading, error, onUpdateUser }) {
             <h3 className="text-xl font-semibold text-gray-900">
               Preferencias
             </h3>
-            {/* Botón Editar para Preferencias */}
             <button
               onClick={() => setIsEditingPreferences((prev) => !prev)}
               className="text-blue-500 hover:text-blue-700 font-medium transition-colors duration-200"
@@ -313,7 +396,7 @@ function UserProfile({ user, loading, error, onUpdateUser }) {
                 disabled={
                   !selectedCslStyle ||
                   preferredCitationStyles.includes(selectedCslStyle)
-                } // Deshabilita si no hay selección o ya está añadido
+                }
                 className={`font-bold py-2 px-4 rounded-lg transition-colors duration-200 ${
                   !selectedCslStyle ||
                   preferredCitationStyles.includes(selectedCslStyle)

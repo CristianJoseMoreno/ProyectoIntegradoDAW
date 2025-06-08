@@ -1,4 +1,3 @@
-// src/components/PdfViewer.js
 import React, { useState, useRef, useCallback } from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import {
@@ -11,6 +10,27 @@ import {
 import toast from "react-hot-toast";
 import PromptConfirmModal from "./PromptConfirmModal";
 
+/**
+ * @file Componente PdfViewer.
+ * @description Componente para visualizar archivos PDF, gestionar múltiples PDFs en pestañas,
+ * y permitir la carga y descarga de PDFs desde el dispositivo local o Google Drive.
+ */
+
+/**
+ * Componente PdfViewer.
+ * Proporciona una interfaz para cargar, visualizar y guardar documentos PDF.
+ *
+ * @param {object} props - Las propiedades del componente.
+ * @param {Array<object>} props.pdfs - Un array de objetos PDF cargados, cada uno con `{ url: string, name: string, googleDriveFileId: string | null }`.
+ * @param {string | null} props.activePdfUrl - La URL del PDF actualmente activo y visible en el visor.
+ * @param {function(?string): void} props.setActivePdfUrl - Callback para establecer el PDF activo. Acepta una URL de string o null.
+ * @param {function(object): void} props.addPdf - Callback para añadir un nuevo PDF al estado.
+ * @param {function(string): void} props.removePdf - Callback para eliminar un PDF del estado por su URL.
+ * @param {string | null} props.googleAccessToken - Token de acceso para la API de Google Drive, si el usuario está autenticado.
+ * @param {function(string, string): Promise<void>} props.downloadPdfFromDriveAndAddToState - Función para descargar un PDF de Google Drive y añadirlo al estado.
+ * @param {boolean} props.areGoogleApisReady - Indica si las APIs de Google (gapi, picker) han sido cargadas e inicializadas.
+ * @returns {JSX.Element} El componente del visor de PDF.
+ */
 export default function PdfViewer({
   pdfs,
   activePdfUrl,
@@ -21,23 +41,62 @@ export default function PdfViewer({
   downloadPdfFromDriveAndAddToState,
   areGoogleApisReady,
 }) {
+  /**
+   * Ref para el input de tipo 'file' oculto.
+   * @type {React.RefObject<HTMLInputElement>}
+   */
   const pdfInputRef = useRef(null);
+
+  /**
+   * Estado para controlar la visibilidad del modal de selección de origen/destino de archivos.
+   * @type {boolean}
+   */
   const [fileSelectionModalOpen, setFileSelectionModalOpen] = useState(false);
+
+  /**
+   * Estado para almacenar la acción actual seleccionada ('upload' o 'download').
+   * @type {?string}
+   */
   const [currentAction, setCurrentAction] = useState(null);
+
+  /**
+   * Estado para controlar la visibilidad del PromptConfirmModal.
+   * @type {boolean}
+   */
   const [isPromptModalOpen, setIsPromptModalOpen] = useState(false);
+
+  /**
+   * Estado para configurar las propiedades del PromptConfirmModal.
+   * @type {object}
+   * @property {string} title - Título del modal.
+   * @property {string} message - Mensaje del modal.
+   * @property {boolean} showInputField - Indica si se muestra un campo de entrada.
+   * @property {string} inputPlaceholder - Texto de placeholder del campo de entrada.
+   * @property {function(?string): void} onConfirm - Callback de confirmación del modal.
+   * @property {string} iconType - Tipo de icono ('warning' o 'document').
+   */
   const [promptModalConfig, setPromptModalConfig] = useState({
     title: "",
     message: "",
     showInputField: false,
     inputPlaceholder: "",
-    onConfirm: () => {}, // Función a llamar al confirmar
-    iconType: "document", // O 'warning'
+    onConfirm: () => {},
+    iconType: "document",
   });
 
+  /**
+   * Abre el diálogo de selección de archivos del sistema operativo.
+   * @type {function(): void}
+   */
   const openPdfDialog = useCallback(() => {
     pdfInputRef.current?.click();
   }, []);
 
+  /**
+   * Maneja el cambio en el input de archivo. Carga el PDF seleccionado.
+   * @param {React.ChangeEvent<HTMLInputElement>} e - El evento de cambio.
+   * @type {function(React.ChangeEvent<HTMLInputElement>): void}
+   */
   const handlePdfChange = useCallback(
     (e) => {
       const file = e.target.files[0];
@@ -50,7 +109,7 @@ export default function PdfViewer({
 
       const fileUrl = URL.createObjectURL(file);
       const fileName = file.name;
-      addPdf({ url: fileUrl, name: fileName, googleDriveFileId: null }); // PDFs locales no tienen googleDriveFileId
+      addPdf({ url: fileUrl, name: fileName, googleDriveFileId: null });
       e.target.value = null;
       toast.success(`PDF "${fileName}" cargado desde Mi dispositivo.`);
       setFileSelectionModalOpen(false);
@@ -58,6 +117,11 @@ export default function PdfViewer({
     [addPdf]
   );
 
+  /**
+   * Establece el PDF activo cuando se hace clic en una pestaña.
+   * @param {string} url - La URL del PDF al que se desea cambiar.
+   * @type {function(string): void}
+   */
   const handleTabClick = useCallback(
     (url) => {
       setActivePdfUrl(url);
@@ -65,6 +129,12 @@ export default function PdfViewer({
     [setActivePdfUrl]
   );
 
+  /**
+   * Cierra una pestaña de PDF.
+   * @param {string} urlToRemove - La URL del PDF que se desea cerrar.
+   * @param {React.MouseEvent} e - El evento del clic.
+   * @type {function(string, React.MouseEvent): void}
+   */
   const handleCloseTab = useCallback(
     (urlToRemove, e) => {
       e.stopPropagation();
@@ -73,6 +143,11 @@ export default function PdfViewer({
     [removePdf]
   );
 
+  /**
+   * Callback para el Google Picker. Procesa el archivo PDF seleccionado.
+   * @param {object} data - Los datos devueltos por el Google Picker.
+   * @type {function(object): Promise<void>}
+   */
   const pickerCallback = useCallback(
     async (data) => {
       if (data.action === window.google.picker.Action.PICKED) {
@@ -116,6 +191,10 @@ export default function PdfViewer({
     [downloadPdfFromDriveAndAddToState]
   );
 
+  /**
+   * Abre el Google Picker para seleccionar un archivo desde Google Drive.
+   * @type {function(): void}
+   */
   const openGoogleDrivePicker = useCallback(() => {
     if (
       !window.gapi ||
@@ -146,27 +225,28 @@ export default function PdfViewer({
       toast.error(
         "El servicio de selección de archivos de Google no está listo. Intenta recargar la página."
       );
-      // Aquí también debería ser setFileSelectionModalOpen(false); en lugar de setIsPromptModalOpen(false);
-      // Si la API no está lista, cierras el modal de selección de archivos, no el de prompt
       setFileSelectionModalOpen(false);
       return;
     }
     picker.setVisible(true);
   }, [googleAccessToken, areGoogleApisReady, pickerCallback]);
 
-  // CAMBIO: Lógica real para guardar localmente, ahora llamada desde onConfirm de la modal
+  /**
+   * Ejecuta la lógica para guardar el PDF activo en el dispositivo local.
+   * Muestra un toast con el resultado de la operación.
+   * @param {string} fileName - El nombre de archivo deseado para guardar (sin extensión).
+   * @type {function(string): Promise<void>}
+   */
   const executeSavePdfLocal = useCallback(
     async (fileName) => {
       if (!activePdfUrl) {
         toast.error("No hay un PDF activo para guardar.");
-        // No cierres el modal aquí, el onConfirm ya lo hará.
         return;
       }
 
       const activePdf = pdfs.find((pdf) => pdf.url === activePdfUrl);
       if (!activePdf) {
         toast.error("No se encontró el PDF activo para guardar.");
-        // No cierres el modal aquí, el onConfirm ya lo hará.
         return;
       }
 
@@ -192,18 +272,20 @@ export default function PdfViewer({
             error.message || "Error desconocido"
           }`
         );
-      } finally {
-        // El onConfirm del promptModalConfig cerrará el modal
       }
     },
     [activePdfUrl, pdfs]
   );
 
-  // CAMBIO: La función handleSavePdfLocal ahora usa el PromptConfirmModal
+  /**
+   * Prepara y abre el `PromptConfirmModal` para solicitar el nombre del archivo
+   * antes de guardar el PDF activo en el dispositivo local.
+   * @type {function(): void}
+   */
   const handleSavePdfLocal = useCallback(() => {
     if (!activePdfUrl) {
       toast.error("No hay un PDF activo para guardar.");
-      setFileSelectionModalOpen(false); // Cierra el modal de selección si no hay PDF
+      setFileSelectionModalOpen(false);
       return;
     }
     const activePdf = pdfs.find((pdf) => pdf.url === activePdfUrl);
@@ -218,51 +300,57 @@ export default function PdfViewer({
       showInputField: true,
       inputPlaceholder: defaultFileName,
       onConfirm: (fileName) => {
+        // fileName aquí puede ser string o undefined (de PromptConfirmModal)
         if (fileName) {
-          executeSavePdfLocal(fileName); // Llama a la lógica de guardado real
-          setIsPromptModalOpen(false); // Cierra el modal después de la confirmación
+          executeSavePdfLocal(fileName);
+          setIsPromptModalOpen(false);
         } else {
           toast.error(
             "Operación de guardar cancelada: Nombre de archivo vacío."
           );
-          // No cierres el modal aquí para que el usuario pueda corregir
         }
       },
       iconType: "document",
     });
-    setIsPromptModalOpen(true); // Abre el modal de prompt
-    // setFileSelectionModalOpen(false); // Podrías cerrar el modal de selección aquí o en onConfirm del prompt
+    setIsPromptModalOpen(true);
   }, [activePdfUrl, pdfs, executeSavePdfLocal]);
 
-  // Helper function to convert Blob to Base64 (Esta función ya existía y es correcta)
+  /**
+   * Convierte un objeto Blob a una cadena Base64.
+   * @param {Blob} blob - El objeto Blob a convertir.
+   * @returns {Promise<string>} Una promesa que resuelve con la cadena Base64 del Blob.
+   * @type {function(Blob): Promise<string>}
+   */
   const blobToBase64 = (blob) => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result.split(",")[1]); // Get only the Base64 part
+      reader.onloadend = () => resolve(reader.result.split(",")[1]);
       reader.onerror = reject;
       reader.readAsDataURL(blob);
     });
   };
 
-  // CAMBIO: Lógica real para guardar en Google Drive, ahora llamada desde onConfirm de la modal
+  /**
+   * Ejecuta la lógica para guardar el PDF activo en Google Drive.
+   * Muestra un toast con el resultado de la operación.
+   * @param {string} fileName - El nombre de archivo deseado para guardar en Drive.
+   * @type {function(string): Promise<void>}
+   */
   const executeSavePdfToDrive = useCallback(
     async (fileName) => {
       if (!activePdfUrl) {
         toast.error("No hay un PDF activo para guardar.");
-        // No cierres el modal aquí, el onConfirm ya lo hará.
         return;
       }
       if (!googleAccessToken) {
         toast.error(
           "No estás autenticado con Google. Por favor, inicia sesión para guardar en Drive."
         );
-        // No cierres el modal aquí, el onConfirm ya lo hará.
         return;
       }
       const activePdf = pdfs.find((pdf) => pdf.url === activePdfUrl);
       if (!activePdf) {
         toast.error("No se encontró el PDF activo para guardar.");
-        // No cierres el modal aquí, el onConfirm ya lo hará.
         return;
       }
 
@@ -275,7 +363,6 @@ export default function PdfViewer({
         toast.error(
           "No se pudo preparar el PDF para guardar. Asegúrate de que el PDF esté cargado correctamente."
         );
-        // No cierres el modal aquí, el onConfirm ya lo hará.
         return;
       }
 
@@ -284,14 +371,13 @@ export default function PdfViewer({
           "Las APIs de Google Drive no están cargadas o no se han inicializado correctamente. Intenta recargar la página."
         );
         console.error("gapi.client.drive no está disponible:", window.gapi);
-        // No cierres el modal aquí, el onConfirm ya lo hará.
         return;
       }
 
       try {
-        const base64Data = await blobToBase64(blob); // Convertir blob a Base64
+        const base64Data = await blobToBase64(blob);
 
-        const boundary = "-------314159265358979323846"; // Define a unique boundary
+        const boundary = "-------314159265358979323846";
         const delimiter = "\r\n--" + boundary + "\r\n";
         const close_delimiter = "\r\n--" + boundary + "--";
 
@@ -300,7 +386,6 @@ export default function PdfViewer({
             ? fileName
             : `${fileName}.pdf`,
           mimeType: "application/pdf",
-          // parents: [] // If you want to put it in a specific folder, use parent IDs
         };
 
         const multipartRequestBody =
@@ -308,10 +393,10 @@ export default function PdfViewer({
           "Content-Type: application/json; charset=UTF-8\r\n\r\n" +
           JSON.stringify(metadata) +
           delimiter +
-          "Content-Type: application/pdf\r\n" + // Explicitly set content type for the file
-          "Content-Transfer-Encoding: base64\r\n" + // Indicate base64 encoding
+          "Content-Type: application/pdf\r\n" +
+          "Content-Transfer-Encoding: base64\r\n" +
           "\r\n" +
-          base64Data + // Insert the Base64 data
+          base64Data +
           close_delimiter;
 
         const response = await window.gapi.client.request({
@@ -320,9 +405,9 @@ export default function PdfViewer({
           params: { uploadType: "multipart" },
           headers: {
             Authorization: `Bearer ${googleAccessToken}`,
-            "Content-Type": `multipart/related; boundary="${boundary}"`, // Set content type with boundary
+            "Content-Type": `multipart/related; boundary="${boundary}"`,
           },
-          body: multipartRequestBody, // Send the manually constructed body string
+          body: multipartRequestBody,
         });
 
         if (response.status === 200) {
@@ -347,18 +432,20 @@ export default function PdfViewer({
           errorMessage = error.message;
         }
         toast.error(`Error al subir el PDF a Google Drive: ${errorMessage}.`);
-      } finally {
-        // El onConfirm del promptModalConfig cerrará el modal
       }
     },
     [activePdfUrl, googleAccessToken, pdfs]
   );
 
-  // CAMBIO: La función savePdfToDrive ahora usa el PromptConfirmModal
+  /**
+   * Prepara y abre el `PromptConfirmModal` para solicitar el nombre del archivo
+   * antes de guardar el PDF activo en Google Drive.
+   * @type {function(): void}
+   */
   const savePdfToDrive = useCallback(() => {
     if (!activePdfUrl) {
       toast.error("No hay un PDF activo para guardar.");
-      setFileSelectionModalOpen(false); // Cierra el modal de selección si no hay PDF
+      setFileSelectionModalOpen(false);
       return;
     }
     if (!googleAccessToken) {
@@ -381,26 +468,30 @@ export default function PdfViewer({
       showInputField: true,
       inputPlaceholder: defaultFileName,
       onConfirm: (fileName) => {
+        // fileName aquí puede ser string o undefined (de PromptConfirmModal)
         if (fileName) {
-          executeSavePdfToDrive(fileName); // Llama a la lógica de guardado real
-          setIsPromptModalOpen(false); // Cierra el modal después de la confirmación
+          executeSavePdfToDrive(fileName);
+          setIsPromptModalOpen(false);
         } else {
           toast.error(
             "Operación de guardar cancelada: Nombre de archivo vacío."
           );
-          // No cierres el modal aquí para que el usuario pueda corregir
         }
       },
       iconType: "document",
     });
-    setIsPromptModalOpen(true); // Abre el modal de prompt
-    // setFileSelectionModalOpen(false); // Podrías cerrar el modal de selección aquí o en onConfirm del prompt
+    setIsPromptModalOpen(true);
   }, [activePdfUrl, googleAccessToken, pdfs, executeSavePdfToDrive]);
 
-  // CAMBIO: handleActionSelection llama a las funciones que abren el modal
+  /**
+   * Maneja la selección de la fuente (local o Google Drive) para cargar o guardar PDFs,
+   * y desencadena la acción correspondiente (abrir selector de archivo o modal de nombre).
+   * @param {string} source - La fuente o destino seleccionado. Puede ser 'local' o 'drive'.
+   * @type {function(string): void}
+   */
   const handleActionSelection = useCallback(
     (source) => {
-      setFileSelectionModalOpen(false); // Cierra el modal de selección antes de abrir el de nombre
+      setFileSelectionModalOpen(false);
 
       if (currentAction === "upload") {
         if (source === "local") {
@@ -410,9 +501,9 @@ export default function PdfViewer({
         }
       } else if (currentAction === "download") {
         if (source === "local") {
-          handleSavePdfLocal(); // Ahora esta función abre el PromptConfirmModal
+          handleSavePdfLocal();
         } else if (source === "drive") {
-          savePdfToDrive(); // Ahora esta función abre el PromptConfirmModal
+          savePdfToDrive();
         }
       }
     },
@@ -420,8 +511,8 @@ export default function PdfViewer({
       currentAction,
       openPdfDialog,
       openGoogleDrivePicker,
-      handleSavePdfLocal, // Dependencia añadida
-      savePdfToDrive, // Dependencia añadida
+      handleSavePdfLocal,
+      savePdfToDrive,
     ]
   );
 
@@ -489,7 +580,6 @@ export default function PdfViewer({
       </div>
 
       {activePdfUrl ? (
-        // Uso de `key` aquí para forzar la recarga del iframe si la URL activa cambia
         <iframe
           key={activePdfUrl}
           src={`/web/viewer.html?file=${encodeURIComponent(activePdfUrl)}`}
@@ -502,7 +592,7 @@ export default function PdfViewer({
         </div>
       )}
 
-      {/* MODAL PARA SELECCIÓN DE ORIGEN/DESTINO DE ARCHIVOS (Este modal ya estaba bien) */}
+      {/* MODAL PARA SELECCIÓN DE ORIGEN/DESTINO DE ARCHIVOS */}
       <Transition appear show={fileSelectionModalOpen} as={React.Fragment}>
         <Dialog
           as="div"
@@ -591,14 +681,11 @@ export default function PdfViewer({
         </Dialog>
       </Transition>
 
-      {/* CAMBIO: Se añade el PromptConfirmModal */}
+      {/* PromptConfirmModal para nombrar archivos al guardar */}
       <PromptConfirmModal
         isOpen={isPromptModalOpen}
         onClose={() => {
           setIsPromptModalOpen(false);
-          // Opcional: Si el modal de selección de origen se cerró, podrías querer reabrirlo aquí
-          // o manejar un estado más complejo para el flujo de UX si el usuario cancela en el prompt.
-          // Por ahora, solo cerramos este modal.
         }}
         onConfirm={promptModalConfig.onConfirm}
         title={promptModalConfig.title}

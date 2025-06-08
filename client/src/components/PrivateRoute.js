@@ -2,17 +2,42 @@ import React from "react";
 import { Navigate } from "react-router-dom";
 import { jwtDecode } from "jwt-decode";
 
+/**
+ * @file Componente PrivateRoute.
+ * @description Un componente de ruta privada que protege rutas en la aplicación.
+ * Verifica la existencia y validez de un token JWT en el `localStorage`.
+ * Si el token no es válido o ha expirado, redirige al usuario a la página de inicio (`/`).
+ */
+
+/**
+ * Componente PrivateRoute.
+ * Envuelve las rutas que requieren autenticación.
+ *
+ * @param {object} props - Las propiedades del componente.
+ * @param {React.ReactNode} props.children - Los componentes hijos que se renderizarán si la ruta es accesible.
+ * @returns {JSX.Element} Los componentes hijos si el usuario está autenticado y el token es válido; de lo contrario, un componente `Maps` para redirigir.
+ */
 const PrivateRoute = ({ children }) => {
   const token = localStorage.getItem("token");
 
   if (!token) {
-    return <Navigate to="/" />; // Redirige a la landing si no hay token
+    return <Navigate to="/" />;
   }
 
   try {
+    /**
+     * Decodifica el token JWT para acceder a su payload.
+     * @type {object}
+     */
     const decoded = jwtDecode(token);
-    const now = Date.now() / 1000; // lo usaremos para controlar el tiempo del token
 
+    /**
+     * Tiempo actual en segundos desde la época Unix.
+     * @type {number}
+     */
+    const now = Date.now() / 1000;
+
+    // Verifica si el token ha expirado.
     if (decoded.exp < now) {
       localStorage.removeItem("token");
       return <Navigate to="/" />;
@@ -20,6 +45,7 @@ const PrivateRoute = ({ children }) => {
 
     return children;
   } catch (error) {
+    // Si hay un error al decodificar el token (ej. token malformado), se elimina y redirige.
     localStorage.removeItem("token");
     return <Navigate to="/" />;
   }

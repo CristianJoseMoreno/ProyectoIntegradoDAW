@@ -1,26 +1,34 @@
 const mongoose = require("mongoose");
 
+/**
+ * @typedef {object} Reference
+ * @property {mongoose.Schema.Types.ObjectId} userId - El ID de MongoDB del usuario al que pertenece la referencia.
+ * @property {object} citationData - Objeto que contiene los datos completos de la citación, generalmente en formato CSL-JSON.
+ * @property {string} [formattedString] - La representación de cadena formateada de la citación (ej. HTML o texto plano).
+ * @property {string} [url] - La URL asociada a la referencia, si aplica.
+ * @property {string} [notes] - Notas adicionales que el usuario pueda tener sobre esta referencia.
+ * @property {Date} [createdAt] - La fecha y hora de creación de la referencia. Por defecto, se establece al momento de la creación.
+ * @property {Date} [lastEdited] - La fecha y hora de la última edición de la referencia. Por defecto, se establece al momento de la creación y se puede actualizar manualmente.
+ */
+
 const referenceSchema = new mongoose.Schema({
   userId: {
-    type: mongoose.Schema.Types.ObjectId, // Si usas el _id de MongoDB del usuario
-    ref: "User", // Nombre del modelo de usuario
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
     required: true,
   },
-  // O si tu User._id es el googleId, podrías usar:
-  // googleId: { type: String, required: true },
-
   citationData: {
-    type: Object, // Para almacenar el objeto CSL-JSON completo de la citación
+    type: Object,
     required: true,
   },
   formattedString: {
-    type: String, // Para almacenar la citación ya formateada (ej. en HTML)
+    type: String,
   },
   url: {
-    type: String, // URL del archivo o recurso al que hace referencia
+    type: String,
   },
   notes: {
-    type: String, // Campo para notas adicionales del usuario sobre la referencia
+    type: String,
   },
   createdAt: {
     type: Date,

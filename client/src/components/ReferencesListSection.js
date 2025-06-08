@@ -1,40 +1,94 @@
-// src/sections/ReferencesListSection.js
 import React, { useState, useEffect } from "react";
 import ReferenceCard from "../components/ReferenceCard";
 import ReferenceFormModal from "../components/ReferenceFormModal";
 import toast from "react-hot-toast";
-import PromptConfirmModal from "../components/PromptConfirmModal"; // ¡Importa la nueva modal unificada!
+import PromptConfirmModal from "../components/PromptConfirmModal";
 
+/**
+ * @file Componente ReferencesListSection.
+ * @description Muestra una lista de referencias bibliográficas del usuario,
+ * permitiendo ver, editar y eliminar cada referencia. También incluye
+ * una modal de confirmación para las eliminaciones.
+ */
+
+/**
+ * Componente ReferencesListSection.
+ * @returns {JSX.Element} El componente de la sección de lista de referencias.
+ */
 function ReferencesListSection() {
+  /**
+   * Estado para almacenar la lista de referencias obtenidas del backend.
+   * @type {Array<object>}
+   */
   const [references, setReferences] = useState([]);
+
+  /**
+   * Estado para indicar si los datos están cargando.
+   * @type {boolean}
+   */
   const [loading, setLoading] = useState(true);
+
+  /**
+   * Estado para almacenar cualquier mensaje de error durante la carga o eliminación.
+   * @type {string | null}
+   */
   const [error, setError] = useState(null);
+
+  /**
+   * Estado para controlar la visibilidad del modal de formulario de referencia (añadir/editar).
+   * @type {boolean}
+   */
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  /**
+   * Estado para almacenar el objeto de referencia que se está editando.
+   * Es `null` si se está añadiendo una nueva referencia.
+   * @type {object | null}
+   */
   const [referenceToEdit, setReferenceToEdit] = useState(null);
 
-  // NUEVOS ESTADOS para la modal de confirmación de eliminación
+  /**
+   * Estado para controlar la visibilidad del modal de confirmación de eliminación.
+   * @type {boolean}
+   */
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
-  const [referenceToDeleteId, setReferenceToDeleteId] = useState(null); // Para guardar el ID de la referencia a eliminar
 
+  /**
+   * Estado para almacenar el ID de la referencia que se va a eliminar.
+   * @type {string | null}
+   */
+  const [referenceToDeleteId, setReferenceToDeleteId] = useState(null);
+
+  /**
+   * Función auxiliar para obtener el token de autenticación del localStorage.
+   * @returns {string | null} El token JWT.
+   */
   const getToken = () => localStorage.getItem("token");
 
+  /**
+   * Hook de efecto para cargar las referencias cuando el componente se monta.
+   */
   useEffect(() => {
     fetchReferences();
   }, []);
 
+  /**
+   * Función asincrónica para obtener todas las referencias del usuario desde el backend.
+   * Actualiza los estados `references`, `loading` y `error`.
+   * @returns {Promise<void>}
+   */
   const fetchReferences = async () => {
     setLoading(true);
     setError(null);
     try {
       const token = getToken();
       if (!token) {
-        // En lugar de throw new Error, mejor un toast y salir para una mejor UX
         toast.error("No autenticado. Por favor, inicia sesión.");
-        setLoading(false); // Asegúrate de quitar el loading
+        setLoading(false);
         return;
       }
 
-      const response = await fetch("http://localhost:5000/api/references", {
+      const response = await fetch("/api/references", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -52,21 +106,29 @@ function ReferencesListSection() {
     } catch (err) {
       console.error("Error al obtener referencias:", err);
       setError(err.message);
-      toast.error(`Error al cargar las referencias: ${err.message}`); // Mensaje más descriptivo al usuario
+      toast.error(`Error al cargar las referencias: ${err.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  // Función para abrir la modal de confirmación antes de eliminar
+  /**
+   * Abre la modal de confirmación de eliminación, guardando el ID de la referencia.
+   * @param {string} id - El ID de la referencia a eliminar.
+   * @returns {void}
+   */
   const requestDeleteConfirmation = (id) => {
     setReferenceToDeleteId(id);
     setIsConfirmModalOpen(true);
   };
 
-  // Lógica real de eliminación, que se ejecuta si el usuario confirma
+  /**
+   * Ejecuta la eliminación de la referencia después de la confirmación del usuario.
+   * Envía una solicitud DELETE al backend.
+   * @returns {Promise<void>}
+   */
   const executeDeleteReference = async () => {
-    if (!referenceToDeleteId) return; // Asegurarse de que hay un ID para eliminar
+    if (!referenceToDeleteId) return;
 
     setLoading(true);
     setError(null);
@@ -75,20 +137,16 @@ function ReferencesListSection() {
       if (!token) {
         toast.error("No autenticado. Por favor, inicia sesión.");
         setLoading(false);
-        setIsConfirmModalOpen(false); // <-- Añadir aquí también para errores tempranos
-
+        setIsConfirmModalOpen(false);
         return;
       }
 
-      const response = await fetch(
-        `http://localhost:5000/api/references/${referenceToDeleteId}`,
-        {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const response = await fetch(`/api/references/${referenceToDeleteId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -101,35 +159,51 @@ function ReferencesListSection() {
         prevRefs.filter((ref) => ref._id !== referenceToDeleteId)
       );
       toast.success("Referencia eliminada con éxito.");
-      setIsConfirmModalOpen(false);
+      setIsConfirmModalOpen(false); // Cierra la modal después de una eliminación exitosa
     } catch (err) {
-      console.error("Error al eliminar referencia:", err); // Para la consola
-      setError(err.message); // Para mostrar en pantalla si es necesario
-      toast.error(`Error al eliminar la referencia: ${err.message}`); // Mensaje para el usuario
-      setIsConfirmModalOpen(false);
+      console.error("Error al eliminar referencia:", err);
+      setError(err.message);
+      toast.error(`Error al eliminar la referencia: ${err.message}`);
+      setIsConfirmModalOpen(false); // Asegúrate de cerrar la modal también en caso de error
     } finally {
       setLoading(false);
-      setReferenceToDeleteId(null); // Limpiar el ID después de la operación
-      // La modal se cierra automáticamente en PromptConfirmModal después de onConfirm
+      setReferenceToDeleteId(null);
     }
   };
 
+  /**
+   * Abre la modal del formulario de referencia en modo edición con los datos de la referencia proporcionada.
+   * @param {object} reference - La referencia a editar.
+   * @returns {void}
+   */
   const openEditModal = (reference) => {
     setReferenceToEdit(reference);
     setIsModalOpen(true);
   };
 
+  /**
+   * Cierra la modal del formulario de referencia y resetea `referenceToEdit`.
+   * @returns {void}
+   */
   const closeModal = () => {
     setIsModalOpen(false);
     setReferenceToEdit(null);
   };
 
-  // Función para cerrar la modal de confirmación (si el usuario pulsa Cancelar)
+  /**
+   * Cierra la modal de confirmación de eliminación y resetea `referenceToDeleteId`.
+   * @returns {void}
+   */
   const closeConfirmModal = () => {
     setIsConfirmModalOpen(false);
-    setReferenceToDeleteId(null); // Limpiar el ID también al cancelar
+    setReferenceToDeleteId(null);
   };
 
+  /**
+   * Callback que se ejecuta cuando una referencia se guarda o actualiza exitosamente.
+   * Vuelve a cargar la lista de referencias para reflejar los cambios.
+   * @returns {void}
+   */
   const handleReferenceSaveSuccess = () => {
     fetchReferences();
   };
@@ -168,11 +242,12 @@ function ReferencesListSection() {
               reference={ref}
               isListView={true}
               onEdit={openEditModal}
-              onDelete={requestDeleteConfirmation} // COMENTARIO ELIMINADO COMPLETAMENTE DE ESTA LÍNEA
+              onDelete={requestDeleteConfirmation}
             />
           ))}
       </div>
 
+      {/* Modal para añadir/editar referencias */}
       <ReferenceFormModal
         isOpen={isModalOpen}
         onClose={closeModal}
@@ -181,16 +256,16 @@ function ReferencesListSection() {
         forTextEditor={false}
       />
 
-      {/* MODAL DE CONFIRMACIÓN DE ELIMINACIÓN - ¡Ahora usa PromptConfirmModal! */}
+      {/* MODAL DE CONFIRMACIÓN DE ELIMINACIÓN */}
       <PromptConfirmModal
         isOpen={isConfirmModalOpen}
         onClose={closeConfirmModal}
         onConfirm={executeDeleteReference}
         title="¿Eliminar referencia?"
         message="¿Estás seguro de que quieres eliminar esta referencia? Esta acción es irreversible."
-        showInputField={false} // Muy importante: ¡NO mostrar campo de texto para una confirmación!
-        iconType="warning" // Para que muestre el icono de advertencia
-        confirmButtonText="Eliminar" // Texto más específico para el botón de confirmación
+        showInputField={false}
+        iconType="warning"
+        confirmButtonText="Eliminar"
         cancelButtonText="Cancelar"
       />
     </section>

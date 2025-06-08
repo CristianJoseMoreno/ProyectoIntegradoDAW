@@ -2,23 +2,76 @@ import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Footer from "../components/Footer";
 
+/**
+ * @file Componente de la página de aterrizaje (Landing).
+ * @description Presenta la aplicación RefMind, sus características principales,
+ * información sobre nosotros y gestiona la navegación inicial del usuario.
+ */
+
+/**
+ * URL de la imagen utilizada en la sección "Sobre Nosotros".
+ * @type {string}
+ */
 const aboutUsImage =
   "https://images.unsplash.com/photo-1507842217343-583bb7270b66?q=80&w=2940&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D";
 
+/**
+ * Ruta de la imagen del logo de la aplicación.
+ * @type {string}
+ */
 const logoSrc = `${process.env.PUBLIC_URL}/logo.png`;
 
+/**
+ * Componente Landing.
+ * @param {object} props - Propiedades del componente.
+ * @param {function(): void} props.handleLoginClick - Función para iniciar el flujo de autenticación.
+ * @returns {JSX.Element} El componente de la página de aterrizaje.
+ */
 const Landing = ({ handleLoginClick }) => {
-  const navigate = useNavigate(); // Hook para redirección
+  /**
+   * Hook de React Router para la navegación programática.
+   * @type {function(string): void}
+   */
+  const navigate = useNavigate();
 
+  /**
+   * Maneja el clic en el botón principal "Empieza a Investigar Ahora".
+   * Redirige al usuario a la página de investigación si ya está autenticado,
+   * de lo contrario, inicia el flujo de autenticación.
+   * @returns {void}
+   */
   const handleButtonClick = () => {
     const token = localStorage.getItem("token");
     if (token) {
-      navigate("/research"); // Redirige a Investigar si el usuario está logado
+      navigate("/research");
     } else {
-      handleLoginClick(); // Llama a la función de login si no está logado
+      handleLoginClick();
     }
   };
 
+  /**
+   * Maneja el clic en los enlaces de navegación internos (ej. en el Footer).
+   * Realiza un desplazamiento suave a la sección de destino y actualiza la URL con el hash.
+   * @param {React.MouseEvent} e - El evento de clic del ratón.
+   * @param {string} targetId - El ID del elemento HTML al que se debe desplazar.
+   * @returns {void}
+   */
+  const handleInternalNavLinkClick = (e, targetId) => {
+    e.preventDefault();
+    const targetElement = document.getElementById(targetId);
+    if (targetElement) {
+      targetElement.scrollIntoView({ behavior: "smooth", block: "center" });
+      window.history.pushState(null, "", `#${targetId}`);
+    } else {
+      window.location.href = `/#${targetId}`;
+    }
+  };
+
+  /**
+   * Hook de efecto para manejar el desplazamiento a secciones específicas basadas en el hash de la URL.
+   * Se activa al cargar la página y en cada cambio del hash.
+   * @returns {function(): void} Función de limpieza para eliminar el event listener.
+   */
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash;
@@ -41,20 +94,9 @@ const Landing = ({ handleLoginClick }) => {
     };
   }, []);
 
-  const handleInternalNavLinkClick = (e, targetId) => {
-    e.preventDefault();
-    const targetElement = document.getElementById(targetId);
-    if (targetElement) {
-      targetElement.scrollIntoView({ behavior: "smooth", block: "center" });
-      window.history.pushState(null, "", `#${targetId}`);
-    } else {
-      window.location.href = `/#${targetId}`;
-    }
-  };
-
   return (
     <>
-      {/* Sección Hero*/}
+      {/* Sección Hero */}
       <section className="bg-bg-default-section relative py-12 md:py-24 text-center">
         <div className="w-full max-w-7xl mx-auto px-6 md:px-10 relative z-10 flex flex-col items-center">
           <h1 className="text-5xl sm:text-5xl lg:text-6xl font-extrabold leading-tight text-gray-900 mb-6">
@@ -78,14 +120,13 @@ const Landing = ({ handleLoginClick }) => {
         </div>
       </section>
 
-      {/* SECCIÓN "SOBRE NOSOTROS"*/}
+      {/* SECCIÓN "SOBRE NOSOTROS" */}
       <section
         id="sobre-nosotros"
         className="bg-bg-default-section relative py-26 md:py-34 overflow-hidden"
       >
         <div className="absolute inset-1 transform -skew-y-[8deg] origin-top-left bg-bg-about-us z-0"></div>
 
-        {/* Contenido de la sección "Sobre Nosotros" */}
         <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 items-center relative z-10">
           <div className="text-center md:text-left">
             <h2 className="text-3xl sm:text-4xl font-bold text-[#1F2937] mb-8">
@@ -116,7 +157,7 @@ const Landing = ({ handleLoginClick }) => {
         </div>
       </section>
 
-      {/* Sección de Características/Ventajas*/}
+      {/* Sección de Características/Ventajas */}
       <section className="bg-bg-default-section py-16 md:py-24 px-6 md:px-10">
         <div className="max-w-7xl mx-auto text-center">
           <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-12">

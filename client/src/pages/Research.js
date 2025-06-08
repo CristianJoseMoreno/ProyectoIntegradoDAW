@@ -1,11 +1,20 @@
-// src/pages/Research.js
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import TextEditor from "../components/TextEditor";
 import PdfViewer from "../components/PdfViewer";
 import axios from "axios";
 
-// --- FUNCIÓN UTILITARIA: Convierte una cadena "binaria" a ArrayBuffer ---
-// Esta función es crucial si gapi.client devuelve una cadena en lugar de un ArrayBuffer directo
+/**
+ * @file Componente principal de la página de Investigación (Research).
+ * @description Permite al usuario editar un documento de investigación y gestionar la visualización de PDFs.
+ * Implementa carga, guardado automático (autosave) y sincronización de PDFs desde Google Drive.
+ */
+
+/**
+ * Convierte una cadena de "caracteres binarios" a un ArrayBuffer.
+ * Es útil si una API devuelve datos binarios como una cadena.
+ * @param {string} str - La cadena a convertir.
+ * @returns {ArrayBuffer} Un ArrayBuffer que contiene los datos de la cadena.
+ */
 const stringToArrayBuffer = (str) => {
   const buf = new ArrayBuffer(str.length);
   const bufView = new Uint8Array(buf);
@@ -15,42 +24,110 @@ const stringToArrayBuffer = (str) => {
   return buf;
 };
 
+/**
+ * Componente Research.
+ * @param {object} props - Propiedades del componente.
+ * @param {string | null} props.googleAccessToken - Token de acceso de Google para interactuar con sus APIs.
+ * @param {boolean} props.areGoogleApisReady - Indica si las APIs de Google (Drive, Picker) están cargadas y listas.
+ * @returns {JSX.Element} El componente de la página de investigación.
+ */
 export default function Research({ googleAccessToken, areGoogleApisReady }) {
+  /**
+   * Estado para el contenido del documento principal (editor de texto).
+   * @type {string}
+   */
   const [doc, setDoc] = useState("");
+
+  /**
+   * Estado para la lista de PDFs abiertos en el visor. Cada PDF es un objeto { url, name, googleDriveFileId }.
+   * @type {Array<object>}
+   */
   const [pdfs, setPdfs] = useState([]);
+
+  /**
+   * Estado para la URL del PDF actualmente activo/visible en el visor.
+   * @type {string}
+   */
   const [activePdfUrl, setActivePdfUrl] = useState("");
+
+  /**
+   * Estado para el ID del documento en la base de datos del backend.
+   * @type {string | null}
+   */
   const [documentId, setDocumentId] = useState(null);
+
+  /**
+   * Estado para controlar el estado de carga inicial del documento.
+   * @type {boolean}
+   */
   const [loading, setLoading] = useState(true);
+
+  /**
+   * Estado para almacenar cualquier error que ocurra durante la carga o guardado.
+   * @type {string | null}
+   */
   const [error, setError] = useState(null);
 
+  /**
+   * Referencia para el temporizador de guardado automático (autosave).
+   * @type {React.MutableRefObject<number | null>}
+   */
   const autosaveTimerRef = useRef(null);
+
+  /**
+   * Retardo de debounce para el guardado automático en milisegundos.
+   * @type {number}
+   */
   const AUTOSAVE_DEBOUNCE_DELAY = 2000;
 
+  /**
+   * Token JWT del usuario obtenido del localStorage.
+   * @type {string | null}
+   */
   const userToken = localStorage.getItem("token");
 
+  /**
+   * Referencia mutable para la lista de PDFs. Se mantiene actualizada con el estado `pdfs`.
+   * @type {React.MutableRefObject<Array<object>>}
+   */
   const pdfsRef = useRef(pdfs);
+
+  /**
+   * Referencia mutable para la URL del PDF activo. Se mantiene actualizada con el estado `activePdfUrl`.
+   * @type {React.MutableRefObject<string>}
+   */
   const activePdfUrlRef = useRef(activePdfUrl);
 
+  /**
+   * Hook de efecto para mantener `pdfsRef.current` sincronizado con el estado `pdfs`.
+   */
   useEffect(() => {
     pdfsRef.current = pdfs;
   }, [pdfs]);
 
+  /**
+   * Hook de efecto para mantener `activePdfUrlRef.current` sincronizado con el estado `activePdfUrl`.
+   */
   useEffect(() => {
     activePdfUrlRef.current = activePdfUrl;
   }, [activePdfUrl]);
 
+  /**
+   * Añade un nuevo PDF a la lista de PDFs abiertos.
+   * Si el PDF ya existe (por URL o por Google Drive File ID), lo activa en lugar de añadirlo de nuevo.
+   * @param {object} pdfInfo - Información del PDF.
+   * @param {string} pdfInfo.url - La URL del objeto del PDF.
+   * @param {string} pdfInfo.name - El nombre del PDF.
+   * @param {string} [pdfInfo.googleDriveFileId=null] - El ID del archivo de Google Drive si proviene de allí.
+   * @returns {void}
+   */
   const addPdf = useCallback(({ url, name, googleDriveFileId = null }) => {
     setPdfs((prevPdfs) => {
-      if (
-        googleDriveFileId &&
-        prevPdfs.some((pdf) => pdf.googleDriveFileId === googleDriveFileId)
-      ) {
-        if (activePdfUrlRef.current !== url) {
-          setActivePdfUrl(url);
-        }
-        return prevPdfs;
-      }
-      if (!googleDriveFileId && prevPdfs.some((pdf) => pdf.url === url)) {
+      const isAlreadyAdded = googleDriveFileId
+        ? prevPdfs.some((pdf) => pdf.googleDriveFileId === googleDriveFileId)
+        : prevPdfs.some((pdf) => pdf.url === url);
+
+      if (isAlreadyAdded) {
         if (activePdfUrlRef.current !== url) {
           setActivePdfUrl(url);
         }
@@ -67,6 +144,13 @@ export default function Research({ googleAccessToken, areGoogleApisReady }) {
     });
   }, []);
 
+  /**
+   * Elimina un PDF de la lista de PDFs abiertos.
+   * Si el PDF eliminado era el activo, establece el siguiente PDF como activo (o ninguno si no quedan).
+   * Revoca la URL del objeto para liberar recursos.
+   * @param {string} urlToRemove - La URL del PDF a eliminar.
+   * @returns {void}
+   */
   const removePdf = useCallback((urlToRemove) => {
     setPdfs((prevPdfs) => {
       const updatedPdfs = prevPdfs.filter((pdf) => pdf.url !== urlToRemove);
@@ -78,18 +162,15 @@ export default function Research({ googleAccessToken, areGoogleApisReady }) {
     });
   }, []);
 
+  /**
+   * Descarga un archivo PDF de Google Drive y lo añade al estado de PDFs.
+   * @param {string} fileId - El ID del archivo de Google Drive a descargar.
+   * @param {string} fileName - El nombre a asignar al PDF.
+   * @returns {Promise<object | null>} Un objeto con { url, name, googleDriveFileId } del PDF añadido, o null si falla.
+   */
   const downloadPdfFromDriveAndAddToState = useCallback(
     async (fileId, fileName) => {
-      console.log(
-        "DEBUG (Research): Intentando descargar PDF con ID:",
-        fileId,
-        "y Nombre:",
-        fileName
-      );
       if (!areGoogleApisReady || !googleAccessToken) {
-        console.warn(
-          "DEBUG (Research): Google APIs no listas o Access Token no disponible. No se puede descargar PDF de Drive."
-        );
         return null;
       }
 
@@ -100,28 +181,18 @@ export default function Research({ googleAccessToken, areGoogleApisReady }) {
             alt: "media",
           },
           {
-            responseType: "arraybuffer", // Pide un arraybuffer
+            responseType: "arraybuffer",
           }
         );
 
         if (response.status === 200) {
           let pdfData = response.body || response.result;
 
-          // **AÑADIR ESTA VERIFICACIÓN Y CONVERSIÓN**
-          // Si `pdfData` es una cadena (string), convertirla a ArrayBuffer
           if (typeof pdfData === "string") {
-            console.log(
-              "DEBUG (Research): Convirtiendo cadena a ArrayBuffer para PDF."
-            );
-            pdfData = stringToArrayBuffer(pdfData); // Usar la función de conversión
+            pdfData = stringToArrayBuffer(pdfData);
           }
 
-          // Asegúrate de que pdfData sea un ArrayBuffer antes de pasarlo a Blob
           if (!(pdfData instanceof ArrayBuffer)) {
-            console.error(
-              "DEBUG (Research): pdfData no es un ArrayBuffer después de la conversión:",
-              pdfData
-            );
             throw new Error(
               "El contenido del PDF no es un ArrayBuffer válido."
             );
@@ -147,7 +218,7 @@ export default function Research({ googleAccessToken, areGoogleApisReady }) {
         }
       } catch (error) {
         console.error(
-          `Error (Research): Error al descargar PDF de Google Drive (ID: ${fileId}):`,
+          `Error al descargar PDF de Google Drive (ID: ${fileId}):`,
           error
         );
         return null;
@@ -156,6 +227,11 @@ export default function Research({ googleAccessToken, areGoogleApisReady }) {
     [googleAccessToken, areGoogleApisReady, addPdf]
   );
 
+  /**
+   * Hook de efecto para cargar el documento y los PDFs guardados desde el backend.
+   * Se ejecuta al montar el componente y cuando `userToken` o `areGoogleApisReady` cambian.
+   * Gestiona la carga de PDFs de Drive con reintentos si las APIs no están listas.
+   */
   useEffect(() => {
     let isMounted = true;
 
@@ -169,12 +245,9 @@ export default function Research({ googleAccessToken, areGoogleApisReady }) {
       }
 
       try {
-        const response = await axios.get(
-          "http://localhost:5000/api/documents",
-          {
-            headers: { Authorization: `Bearer ${userToken}` },
-          }
-        );
+        const response = await axios.get("/api/documents", {
+          headers: { Authorization: `Bearer ${userToken}` },
+        });
 
         if (!isMounted) return;
 
@@ -182,17 +255,12 @@ export default function Research({ googleAccessToken, areGoogleApisReady }) {
           const { _id, content, openPdfIds } = response.data;
           setDocumentId(_id);
           setDoc(content || "");
-          console.log("DEBUG (Research): Documento cargado del backend:", {
-            _id,
-            content,
-            openPdfIds,
-          });
 
           if (openPdfIds && openPdfIds.length > 0) {
             const loadDrivePdfsWithRetry = async () => {
               if (!isMounted) return;
               if (areGoogleApisReady) {
-                setPdfs([]); // Limpia PDFs al inicio de la carga desde DB
+                setPdfs([]);
 
                 const pdfPromises = openPdfIds.map(async (pdfInfo) => {
                   let fileId = pdfInfo;
@@ -204,12 +272,6 @@ export default function Research({ googleAccessToken, areGoogleApisReady }) {
                   ) {
                     fileId = pdfInfo.fileId;
                     fileName = pdfInfo.name;
-                  } else if (typeof pdfInfo !== "string") {
-                    console.warn(
-                      "DEBUG (Research): Formato de PDF ID inesperado:",
-                      pdfInfo
-                    );
-                    return null;
                   }
                   return await downloadPdfFromDriveAndAddToState(
                     fileId,
@@ -232,7 +294,7 @@ export default function Research({ googleAccessToken, areGoogleApisReady }) {
         }
       } catch (err) {
         if (!isMounted) return;
-        console.error("Error (Research): Error al cargar el documento:", err);
+        console.error("Error al cargar el documento:", err);
         setError("Error al cargar el documento. Por favor, intenta de nuevo.");
         setDocumentId(null);
         setDoc("");
@@ -251,6 +313,11 @@ export default function Research({ googleAccessToken, areGoogleApisReady }) {
     };
   }, [userToken, areGoogleApisReady, downloadPdfFromDriveAndAddToState]);
 
+  /**
+   * Hook de efecto para implementar el guardado automático (autosave) del documento y los PDFs.
+   * Guarda el contenido del editor y los IDs de los PDFs abiertos en Google Drive en el backend
+   * después de un retraso definido (`AUTOSAVE_DEBOUNCE_DELAY`) desde la última modificación.
+   */
   useEffect(() => {
     if (autosaveTimerRef.current) {
       clearTimeout(autosaveTimerRef.current);
@@ -272,23 +339,14 @@ export default function Research({ googleAccessToken, areGoogleApisReady }) {
             .filter((pdf) => pdf.googleDriveFileId)
             .map((pdf) => ({ fileId: pdf.googleDriveFileId, name: pdf.name })),
         };
-        console.log(
-          "DEBUG (Research): Datos enviados para guardar:",
-          dataToSave
-        );
 
-        const response = await axios.post(
-          "http://localhost:5000/api/documents",
-          dataToSave,
-          {
-            headers: { Authorization: `Bearer ${userToken}` },
-          }
-        );
+        const response = await axios.post("/api/documents", dataToSave, {
+          headers: { Authorization: `Bearer ${userToken}` },
+        });
 
         setDocumentId(response.data.document._id);
-        console.log("Documento guardado/actualizado con éxito.");
       } catch (err) {
-        console.error("Error (Research): Error al guardar el documento:", err);
+        console.error("Error al guardar el documento:", err);
       }
     }, AUTOSAVE_DEBOUNCE_DELAY);
 
@@ -328,8 +386,8 @@ export default function Research({ googleAccessToken, areGoogleApisReady }) {
           pdfs={pdfs}
           activePdfUrl={activePdfUrl}
           setActivePdfUrl={setActivePdfUrl}
-          addPdf={addPdf} // Mantén `addPdf` sin el sufijo "ToStateFromViewer" para simplificar
-          removePdf={removePdf} // Mantén `removePdf` sin el sufijo "FromState" para simplificar
+          addPdf={addPdf}
+          removePdf={removePdf}
           googleAccessToken={googleAccessToken}
           downloadPdfFromDriveAndAddToState={downloadPdfFromDriveAndAddToState}
           areGoogleApisReady={areGoogleApisReady}

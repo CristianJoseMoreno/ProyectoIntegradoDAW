@@ -1,62 +1,114 @@
-// src/components/TextEditor.js
 import React, { useState, useRef } from "react";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
 import { Dialog, Transition } from "@headlessui/react";
 import mammoth from "mammoth";
 import toast from "react-hot-toast";
-
-// Importa iconos.
 import {
   ArrowUpTrayIcon,
   ArrowDownTrayIcon,
   FolderOpenIcon,
   CloudArrowUpIcon,
   CloudArrowDownIcon,
+  PlusIcon,
 } from "@heroicons/react/24/outline";
-import { PlusIcon } from "@heroicons/react/24/outline";
-
-// Importa el nuevo ReferenceFormModal
 import ReferenceFormModal from "./ReferenceFormModal";
-// Importa la nueva modal de Prompt/Confirmación
-import PromptConfirmModal from "./PromptConfirmModal"; // <-- NUEVA IMPORTACIÓN
+import PromptConfirmModal from "./PromptConfirmModal";
 
+/**
+ * @file Componente TextEditor.
+ * @description Un editor de texto enriquecido basado en ReactQuill que permite
+ * cargar y guardar documentos localmente o en Google Drive, y además,
+ * insertar referencias formateadas.
+ */
+
+/**
+ * Convierte una cadena de "caracteres binarios" a un ArrayBuffer.
+ * Se utiliza para procesar el contenido de archivos binarios como DOCX desde Google Drive.
+ * @param {string} str - La cadena a convertir.
+ * @returns {ArrayBuffer} Un ArrayBuffer que contiene los datos de la cadena.
+ */
+const stringToBytes = (str) => {
+  const bytes = new Uint8Array(str.length);
+  for (let i = 0; i < str.length; i++) {
+    bytes[i] = str.charCodeAt(i) & 0xff;
+  }
+  return bytes.buffer;
+};
+
+/**
+ * Componente TextEditor.
+ * @param {object} props - Propiedades del componente.
+ * @param {string} props.doc - El contenido actual del documento en formato HTML.
+ * @param {function(string): void} props.setDoc - Función para actualizar el contenido del documento.
+ * @param {string | null} props.googleAccessToken - Token de acceso de Google para interactuar con sus APIs (Drive, Picker).
+ * @returns {JSX.Element} El componente del editor de texto.
+ */
 export default function TextEditor({ doc, setDoc, googleAccessToken }) {
-  // Estado para controlar el modal de selección de archivo (UPLOAD/DOWNLOAD)
+  /**
+   * Estado para controlar la visibilidad de la modal de selección de origen/destino de archivo (local/Drive).
+   * @type {boolean}
+   */
   const [fileSelectionModalOpen, setFileSelectionModalOpen] = useState(false);
-  const [currentAction, setCurrentAction] = useState(null); // 'upload' o 'download'
 
-  // NUEVO ESTADO para controlar la visibilidad del modal de referencias
+  /**
+   * Estado para indicar la acción actual del usuario (carga 'upload' o descarga 'download').
+   * @type {'upload' | 'download' | null}
+   */
+  const [currentAction, setCurrentAction] = useState(null);
+
+  /**
+   * Estado para controlar la visibilidad del modal de creación/inserción de referencias.
+   * @type {boolean}
+   */
   const [isReferenceModalOpen, setIsReferenceModalOpen] = useState(false);
 
-  // NUEVOS ESTADOS para la modal de PROMPT/CONFIRMACIÓN (para guardar archivos)
+  /**
+   * Estado para controlar la visibilidad de la modal de prompt/confirmación (usada para pedir nombres de archivo).
+   * @type {boolean}
+   */
   const [isPromptModalOpen, setIsPromptModalOpen] = useState(false);
+
+  /**
+   * Estado para configurar el contenido y comportamiento de la modal de prompt/confirmación.
+   * @type {{title: string, message: string, showInputField: boolean, inputPlaceholder: string, onConfirm: function(string): void, iconType: 'document' | 'warning'}}
+   */
   const [promptModalConfig, setPromptModalConfig] = useState({
     title: "",
     message: "",
     showInputField: false,
     inputPlaceholder: "",
-    onConfirm: () => {}, // Función a llamar al confirmar
-    iconType: "document", // O 'warning'
+    onConfirm: () => {},
+    iconType: "document",
   });
 
-  // Ref para el editor de texto Quill para la inserción de texto
+  /**
+   * Referencia al componente ReactQuill para acceder a su instancia subyacente de Quill.
+   * Útil para operaciones directas como la inserción de texto en la posición del cursor.
+   * @type {React.MutableRefObject<ReactQuill | null>}
+   */
   const quillRef = useRef(null);
 
-  // Función auxiliar para convertir una cadena "binaria" a ArrayBuffer (mantener la misma lógica que tenías)
-  const stringToBytes = (str) => {
-    const bytes = new Uint8Array(str.length);
-    for (let i = 0; i < str.length; i++) {
-      bytes[i] = str.charCodeAt(i) & 0xff;
-    }
-    return bytes.buffer;
-  };
+  /**
+   * Referencia al input de tipo 'file' oculto para disparar la selección de archivos locales.
+   * @type {React.MutableRefObject<HTMLInputElement | null>}
+   */
   const fileInputRef = useRef(null);
 
+  /**
+   * Abre el cuadro de diálogo de selección de archivo del sistema operativo.
+   * @returns {void}
+   */
   const openFileDialog = () => {
     fileInputRef.current?.click();
   };
 
+  /**
+   * Maneja el evento de cambio en el input de archivo, procesando el archivo seleccionado.
+   * Soporta la carga de archivos .txt y .docx, convirtiendo DOCX a HTML.
+   * @param {React.ChangeEvent<HTMLInputElement>} e - El evento de cambio.
+   * @returns {Promise<void>}
+   */
   const handleFileChange = async (e) => {
     const file = e.target.files[0];
     if (!file) {
@@ -86,11 +138,14 @@ export default function TextEditor({ doc, setDoc, googleAccessToken }) {
       toast.error("Solo se permiten archivos .txt y .docx");
     }
 
-    e.target.value = null;
+    e.target.value = null; // Limpiar el input para permitir cargar el mismo archivo de nuevo
     setFileSelectionModalOpen(false);
   };
 
-  // Función para abrir la modal de prompt para guardar localmente
+  /**
+   * Configura y abre la modal de prompt para solicitar el nombre de archivo al guardar localmente.
+   * @returns {void}
+   */
   const requestFileNameLocal = () => {
     setPromptModalConfig({
       title: "Guardar archivo en Mi dispositivo",
@@ -98,16 +153,14 @@ export default function TextEditor({ doc, setDoc, googleAccessToken }) {
         "Introduce el nombre del archivo (sin extensión). Se guardará como .txt",
       showInputField: true,
       inputPlaceholder: "mi_documento",
-      // La función onConfirm ahora se encarga de llamar a executeSaveLocal Y cerrar la modal
       onConfirm: (fileName) => {
         if (fileName) {
           executeSaveLocal(fileName);
-          setIsPromptModalOpen(false); // <-- Cierra la modal aquí
+          setIsPromptModalOpen(false);
         } else {
           toast.error(
             "Operación de guardar cancelada: Nombre de archivo vacío."
           );
-          // NO CERRAR la modal aquí para que el usuario vea el error y pueda corregir
         }
       },
       iconType: "document",
@@ -115,7 +168,11 @@ export default function TextEditor({ doc, setDoc, googleAccessToken }) {
     setIsPromptModalOpen(true);
   };
 
-  // Lógica real para guardar localmente, llamada desde onConfirm de la modal
+  /**
+   * Ejecuta la lógica para guardar el contenido del editor como un archivo .txt localmente.
+   * @param {string} fileName - El nombre base del archivo.
+   * @returns {void}
+   */
   const executeSaveLocal = (fileName) => {
     const tempDiv = document.createElement("div");
     tempDiv.innerHTML = doc;
@@ -132,13 +189,17 @@ export default function TextEditor({ doc, setDoc, googleAccessToken }) {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(link.href); // Liberar la URL del objeto
 
     toast.success(
       `Documento "${fileName}.txt" guardado con éxito. En futuras versiones se aceptarán más formatos de guardado.`
     );
-    // Ya no necesitas setFileSelectionModalOpen(false) aquí, la modal se cierra en onConfirm
   };
 
+  /**
+   * Abre el Google Drive Picker para que el usuario seleccione un archivo.
+   * @returns {void}
+   */
   const openGoogleDrivePicker = () => {
     if (!window.gapi || !window.gapi.client || !googleAccessToken) {
       toast.error(
@@ -173,6 +234,12 @@ export default function TextEditor({ doc, setDoc, googleAccessToken }) {
     picker.setVisible(true);
   };
 
+  /**
+   * Callback que se ejecuta cuando el usuario selecciona un archivo en el Google Drive Picker.
+   * Descarga y procesa el archivo seleccionado.
+   * @param {object} data - Objeto de datos del picker con la acción y los documentos seleccionados.
+   * @returns {Promise<void>}
+   */
   const pickerCallback = async (data) => {
     if (data.action === window.google.picker.Action.PICKED) {
       const doc = data.docs[0];
@@ -197,6 +264,14 @@ export default function TextEditor({ doc, setDoc, googleAccessToken }) {
     }
   };
 
+  /**
+   * Descarga un archivo desde Google Drive y actualiza el contenido del editor.
+   * Maneja diferentes tipos MIME, incluyendo documentos de Google y archivos DOCX.
+   * @param {string} fileId - El ID del archivo en Google Drive.
+   * @param {string} fileName - El nombre del archivo.
+   * @param {string} mimeType - El tipo MIME del archivo.
+   * @returns {Promise<void>}
+   */
   const downloadFileFromDrive = async (fileId, fileName, mimeType) => {
     let response;
     let fileContent;
@@ -301,7 +376,19 @@ export default function TextEditor({ doc, setDoc, googleAccessToken }) {
           throw new Error(`Tipo de archivo no soportado: ${mimeType}`);
         }
       } else {
-        // ... (manejo de errores HTTP existente)
+        let errorMessage = "Error desconocido al descargar archivo.";
+        if (
+          response.result &&
+          response.result.error &&
+          response.result.error.message
+        ) {
+          errorMessage = response.result.error.message;
+        } else if (response.statusText) {
+          errorMessage = response.statusText;
+        }
+        throw new Error(
+          `Error HTTP al descargar archivo: ${response.status} - ${errorMessage}`
+        );
       }
     } catch (error) {
       if (error.result && error.result.error && error.result.error.message) {
@@ -312,7 +399,10 @@ export default function TextEditor({ doc, setDoc, googleAccessToken }) {
     }
   };
 
-  // Función para abrir la modal de prompt para guardar en Google Drive
+  /**
+   * Configura y abre la modal de prompt para solicitar el nombre de archivo al guardar en Google Drive.
+   * @returns {void}
+   */
   const requestFileNameForDrive = () => {
     setPromptModalConfig({
       title: "Guardar archivo en Google Drive",
@@ -320,16 +410,14 @@ export default function TextEditor({ doc, setDoc, googleAccessToken }) {
         "Introduce el nombre del archivo para Google Drive (ej: mi_documento). Se guardará como .txt",
       showInputField: true,
       inputPlaceholder: "mi_documento",
-      // La función onConfirm ahora se encarga de llamar a executeSaveToDrive Y cerrar la modal
       onConfirm: (fileName) => {
         if (fileName) {
           executeSaveToDrive(fileName);
-          setIsPromptModalOpen(false); // <-- Cierra la modal aquí
+          setIsPromptModalOpen(false);
         } else {
           toast.error(
             "Operación de guardar cancelada: Nombre de archivo vacío."
           );
-          // NO CERRAR la modal aquí para que el usuario vea el error y pueda corregir
         }
       },
       iconType: "document",
@@ -337,7 +425,11 @@ export default function TextEditor({ doc, setDoc, googleAccessToken }) {
     setIsPromptModalOpen(true);
   };
 
-  // Lógica real para guardar en Google Drive, llamada desde onConfirm de la modal
+  /**
+   * Ejecuta la lógica para guardar el contenido del editor como un archivo .txt en Google Drive.
+   * @param {string} fileName - El nombre base del archivo.
+   * @returns {Promise<void>}
+   */
   const executeSaveToDrive = async (fileName) => {
     if (
       !window.gapi ||
@@ -348,7 +440,6 @@ export default function TextEditor({ doc, setDoc, googleAccessToken }) {
       toast.error(
         "Las APIs de Google Drive no están cargadas o no estás autenticado."
       );
-      // setFileSelectionModalOpen(false); // Esto ya no es necesario aquí
       return;
     }
 
@@ -357,7 +448,7 @@ export default function TextEditor({ doc, setDoc, googleAccessToken }) {
         "En futuras versiones, se aceptarán más formatos."
     );
 
-    let mimeType = "text/plain";
+    const mimeType = "text/plain";
     const tempDiv = document.createElement("div");
     tempDiv.innerHTML = doc;
     const fileContentToSend = tempDiv.textContent || tempDiv.innerText || "";
@@ -403,13 +494,16 @@ export default function TextEditor({ doc, setDoc, googleAccessToken }) {
         errorMessage = error.message;
       }
       toast.error(`Error al subir el archivo a Google Drive: ${errorMessage}.`);
-    } finally {
-      // Ya no necesitas setFileSelectionModalOpen(false) aquí, la modal se cierra en onConfirm
     }
   };
 
+  /**
+   * Decide qué acción ejecutar (cargar/guardar) en función de la fuente seleccionada (local/Drive).
+   * @param {'local' | 'drive'} source - La fuente o destino del archivo.
+   * @returns {void}
+   */
   const handleActionSelection = (source) => {
-    setFileSelectionModalOpen(false); // Cierra la modal de selección de acción
+    setFileSelectionModalOpen(false);
 
     if (currentAction === "upload") {
       if (source === "local") {
@@ -419,24 +513,28 @@ export default function TextEditor({ doc, setDoc, googleAccessToken }) {
       }
     } else if (currentAction === "download") {
       if (source === "local") {
-        requestFileNameLocal(); // Llama a la nueva función para pedir el nombre
+        requestFileNameLocal();
       } else if (source === "drive") {
-        requestFileNameForDrive(); // Llama a la nueva función para pedir el nombre
+        requestFileNameForDrive();
       }
     }
   };
 
-  // Función para insertar texto formateado en ReactQuill
-  // Esta es la función que se pasará a ReferenceFormModal
+  /**
+   * Inserta texto formateado (HTML) en la posición actual del cursor en el editor Quill.
+   * Actualiza el estado `doc` después de la inserción.
+   * @param {string} formattedHtml - La cadena HTML a insertar.
+   * @returns {void}
+   */
   const handleInsertFormattedText = (formattedHtml) => {
     if (quillRef.current) {
       const quill = quillRef.current.getEditor();
       const selection = quill.getSelection();
-      let index = selection ? selection.index : quill.getLength(); // Insertar en la posición del cursor o al final
+      let index = selection ? selection.index : quill.getLength();
 
       quill.clipboard.dangerouslyPasteHTML(index, formattedHtml);
-      quill.setSelection(index + formattedHtml.length); // Mover el cursor al final del texto insertado
-      setDoc(quill.root.innerHTML); // Actualizar el estado `doc` con el nuevo contenido HTML
+      quill.setSelection(index + formattedHtml.length);
+      setDoc(quill.root.innerHTML);
     }
   };
 
@@ -467,7 +565,6 @@ export default function TextEditor({ doc, setDoc, googleAccessToken }) {
             <span>Guardar</span>
           </button>
 
-          {/* Botón para abrir el nuevo modal de referencias */}
           <button
             onClick={() => setIsReferenceModalOpen(true)}
             className="flex items-center space-x-2 px-4 py-2 border border-indigo-600 text-indigo-600 rounded-lg hover:bg-indigo-50 transition"
@@ -477,7 +574,6 @@ export default function TextEditor({ doc, setDoc, googleAccessToken }) {
           </button>
         </div>
       </div>
-      {/* Input de archivo oculto */}
       <input
         ref={fileInputRef}
         type="file"
@@ -583,19 +679,17 @@ export default function TextEditor({ doc, setDoc, googleAccessToken }) {
         </Dialog>
       </Transition>
 
-      {/* Nuevo componente ReferenceFormModal */}
       <ReferenceFormModal
         isOpen={isReferenceModalOpen}
         onClose={() => setIsReferenceModalOpen(false)}
         onSaveSuccess={() => {}}
-        forTextEditor={true} // Muy importante: indica que es para el editor de texto
-        onInsertFormattedText={handleInsertFormattedText} // Callback para insertar el texto
+        forTextEditor={true}
+        onInsertFormattedText={handleInsertFormattedText}
       />
 
-      {/* Nueva Modal de Prompt/Confirmación para guardar */}
       <PromptConfirmModal
         isOpen={isPromptModalOpen}
-        onClose={() => setIsPromptModalOpen(false)} // Aquí cerramos la modal si se pulsa Cancelar o si se llama directamente onCLose
+        onClose={() => setIsPromptModalOpen(false)}
         onConfirm={promptModalConfig.onConfirm}
         title={promptModalConfig.title}
         message={promptModalConfig.message}
